@@ -1,5 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
+
+// Helper function to get temperature by type
+const getTempByType = (d, type) => {
+  return type === 'min' ? d.temp_min : type === 'max' ? d.temp_max : d.temp_mean;
+};
+
+// Type to label mapping
+const TYPE_LABELS = {
+  min: 'Low',
+  mean: 'Avg',
+  max: 'High'
+};
 
 /**
  * SwarmPlot component for displaying temperature data
@@ -11,6 +23,14 @@ export default function SwarmPlot({ data, selectedDays }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [expandedDay, setExpandedDay] = useState(null);
+
+  // Memoize filtered and sorted day data for expanded view
+  const expandedDayData = useMemo(() => {
+    if (!expandedDay || !data || data.length === 0) return [];
+    return data
+      .filter(d => `${d.month}-${d.day}` === expandedDay.key)
+      .sort((a, b) => a.year - b.year);
+  }, [data, expandedDay]);
 
   // Render expanded detail view for a specific day
   useEffect(() => {
@@ -30,10 +50,8 @@ export default function SwarmPlot({ data, selectedDays }) {
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Filter data for the expanded day
-    const dayData = data.filter(d => 
-      `${d.month}-${d.day}` === expandedDay.key
-    ).sort((a, b) => a.year - b.year);
+    // Use memoized data
+    const dayData = expandedDayData;
 
     if (dayData.length === 0) return;
 
@@ -62,9 +80,9 @@ export default function SwarmPlot({ data, selectedDays }) {
     // Draw horizontal reference lines for latest year's data
     if (latestData) {
       const hlineData = [
-        { type: 'min', value: latestData.temp_min, label: 'Low' },
-        { type: 'mean', value: latestData.temp_mean, label: 'Avg' },
-        { type: 'max', value: latestData.temp_max, label: 'High' }
+        { type: 'min', value: getTempByType(latestData, 'min'), label: TYPE_LABELS.min },
+        { type: 'mean', value: getTempByType(latestData, 'mean'), label: TYPE_LABELS.mean },
+        { type: 'max', value: getTempByType(latestData, 'max'), label: TYPE_LABELS.max }
       ];
 
       hlineData.forEach(({ type, value, label }) => {
@@ -96,7 +114,7 @@ export default function SwarmPlot({ data, selectedDays }) {
     tempTypes.forEach(type => {
       const lineData = dayData.map(d => ({
         year: d.year,
-        temp: type === 'min' ? d.temp_min : type === 'max' ? d.temp_max : d.temp_mean
+        temp: getTempByType(d, type)
       }));
 
       // Draw line
@@ -125,7 +143,7 @@ export default function SwarmPlot({ data, selectedDays }) {
         .attr('stroke-width', d => d.year === maxYear ? 2 : 0.5)
         .attr('opacity', d => d.year === maxYear ? 1 : 0.7)
         .append('title')
-        .text(d => `${d.year}\n${type === 'min' ? 'Low' : type === 'max' ? 'High' : 'Avg'}: ${d.temp.toFixed(1)}°F`);
+        .text(d => `${d.year}\n${TYPE_LABELS[type]}: ${d.temp.toFixed(1)}°F`);
     });
 
     // X-axis
@@ -206,9 +224,9 @@ export default function SwarmPlot({ data, selectedDays }) {
       .attr('transform', `translate(${innerWidth - 180}, -40)`);
 
     const legendData = [
-      { type: 'min', label: 'Low' },
-      { type: 'mean', label: 'Avg' },
-      { type: 'max', label: 'High' }
+      { type: 'min', label: TYPE_LABELS.min },
+      { type: 'mean', label: TYPE_LABELS.mean },
+      { type: 'max', label: TYPE_LABELS.max }
     ];
 
     legendData.forEach((d, i) => {
@@ -228,7 +246,7 @@ export default function SwarmPlot({ data, selectedDays }) {
         .text(d.label);
     });
 
-  }, [data, expandedDay]);
+  }, [data, expandedDay, expandedDayData]);
 
   // Render main swarm plot view
   useEffect(() => {
@@ -305,7 +323,7 @@ export default function SwarmPlot({ data, selectedDays }) {
     dataByDay.forEach((dayData, dayKey) => {
       tempTypes.forEach(type => {
         dayData.forEach(d => {
-          const temp = type === 'min' ? d.temp_min : type === 'max' ? d.temp_max : d.temp_mean;
+          const temp = getTempByType(d, type);
           const targetX = xScale(dayKey) + xScale.bandwidth() * (0.5 + typeOffset[type]);
           const targetY = yScale(temp);
           const isLatest = d.year === maxYear;
@@ -438,7 +456,7 @@ export default function SwarmPlot({ data, selectedDays }) {
       .attr('stroke-width', 0.5)
       .style('pointer-events', 'none')
       .append('title')
-      .text(d => `${d.date}\n${d.type === 'min' ? 'Low' : d.type === 'max' ? 'High' : 'Avg'}: ${d.temp}°F`);
+      .text(d => `${d.date}\n${TYPE_LABELS[d.type]}: ${d.temp}°F`);
 
     // Draw latest year points with highlighting
     g.selectAll('circle.latest')
@@ -454,7 +472,7 @@ export default function SwarmPlot({ data, selectedDays }) {
       .attr('stroke-width', 2)
       .style('pointer-events', 'none')
       .append('title')
-      .text(d => `${d.date} (Latest)\n${d.type === 'min' ? 'Low' : d.type === 'max' ? 'High' : 'Avg'}: ${d.temp}°F`);
+      .text(d => `${d.date} (Latest)\n${TYPE_LABELS[d.type]}: ${d.temp}°F`);
 
     // Draw "years since" labels above and below each swarm
     dayLabels.forEach(({ key }) => {
@@ -492,9 +510,9 @@ export default function SwarmPlot({ data, selectedDays }) {
       .attr('transform', `translate(${innerWidth - 180}, -40)`);
 
     const legendData = [
-      { type: 'min', label: 'Low' },
-      { type: 'mean', label: 'Avg' },
-      { type: 'max', label: 'High' }
+      { type: 'min', label: TYPE_LABELS.min },
+      { type: 'mean', label: TYPE_LABELS.mean },
+      { type: 'max', label: TYPE_LABELS.max }
     ];
 
     legendData.forEach((d, i) => {
