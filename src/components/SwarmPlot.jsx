@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
 /**
@@ -10,9 +10,229 @@ import * as d3 from 'd3';
 export default function SwarmPlot({ data, selectedDays }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
+  const [expandedDay, setExpandedDay] = useState(null);
 
+  // Render expanded detail view for a specific day
   useEffect(() => {
-    if (!data || data.length === 0 || !svgRef.current) return;
+    if (!data || data.length === 0 || !svgRef.current || !expandedDay) return;
+
+    const container = containerRef.current;
+    const width = container.clientWidth;
+    const height = 560;
+    const margin = { top: 60, right: 40, bottom: 80, left: 60 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+    svg.attr('width', width).attr('height', height);
+
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Filter data for the expanded day
+    const dayData = data.filter(d => 
+      `${d.month}-${d.day}` === expandedDay.key
+    ).sort((a, b) => a.year - b.year);
+
+    if (dayData.length === 0) return;
+
+    const maxYear = d3.max(dayData, d => d.year);
+    const latestData = dayData.find(d => d.year === maxYear);
+
+    // X scale - years
+    const years = dayData.map(d => d.year);
+    const xScale = d3.scaleLinear()
+      .domain([d3.min(years), d3.max(years)])
+      .range([0, innerWidth]);
+
+    // Y scale - temperature
+    const allTemps = dayData.flatMap(d => [d.temp_min, d.temp_max, d.temp_mean]);
+    const yExtent = d3.extent(allTemps);
+    const yPadding = (yExtent[1] - yExtent[0]) * 0.1;
+    const yScale = d3.scaleLinear()
+      .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
+      .range([innerHeight, 0]);
+
+    // Color scale
+    const colorScale = d3.scaleOrdinal()
+      .domain(['min', 'mean', 'max'])
+      .range(['#4393c3', '#999999', '#d6604d']);
+
+    // Draw horizontal reference lines for latest year's data
+    if (latestData) {
+      const hlineData = [
+        { type: 'min', value: latestData.temp_min, label: 'Low' },
+        { type: 'mean', value: latestData.temp_mean, label: 'Avg' },
+        { type: 'max', value: latestData.temp_max, label: 'High' }
+      ];
+
+      hlineData.forEach(({ type, value, label }) => {
+        // Draw horizontal line
+        g.append('line')
+          .attr('x1', 0)
+          .attr('x2', innerWidth)
+          .attr('y1', yScale(value))
+          .attr('y2', yScale(value))
+          .attr('stroke', colorScale(type))
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '6,4')
+          .attr('opacity', 0.8);
+
+        // Label on the right
+        g.append('text')
+          .attr('x', innerWidth + 5)
+          .attr('y', yScale(value))
+          .attr('dy', '0.35em')
+          .style('font-size', '10px')
+          .style('fill', colorScale(type))
+          .style('font-weight', 'bold')
+          .text(`${maxYear} ${label}: ${value.toFixed(1)}°`);
+      });
+    }
+
+    // Draw lines connecting points for each temp type
+    const tempTypes = ['min', 'mean', 'max'];
+    tempTypes.forEach(type => {
+      const lineData = dayData.map(d => ({
+        year: d.year,
+        temp: type === 'min' ? d.temp_min : type === 'max' ? d.temp_max : d.temp_mean
+      }));
+
+      // Draw line
+      const line = d3.line()
+        .x(d => xScale(d.year))
+        .y(d => yScale(d.temp));
+
+      g.append('path')
+        .datum(lineData)
+        .attr('fill', 'none')
+        .attr('stroke', colorScale(type))
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.6)
+        .attr('d', line);
+
+      // Draw points
+      g.selectAll(`circle.${type}`)
+        .data(lineData)
+        .join('circle')
+        .attr('class', type)
+        .attr('cx', d => xScale(d.year))
+        .attr('cy', d => yScale(d.temp))
+        .attr('r', d => d.year === maxYear ? 5 : 3)
+        .attr('fill', colorScale(type))
+        .attr('stroke', d => d.year === maxYear ? '#fff' : colorScale(type))
+        .attr('stroke-width', d => d.year === maxYear ? 2 : 0.5)
+        .attr('opacity', d => d.year === maxYear ? 1 : 0.7)
+        .append('title')
+        .text(d => `${d.year}\n${type === 'min' ? 'Low' : type === 'max' ? 'High' : 'Avg'}: ${d.temp.toFixed(1)}°F`);
+    });
+
+    // X-axis
+    const xAxis = d3.axisBottom(xScale)
+      .tickFormat(d3.format('d'));
+    g.append('g')
+      .attr('class', 'x-axis')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(xAxis)
+      .selectAll('text')
+      .style('font-size', '12px');
+
+    // X-axis label
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', innerHeight + 45)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '14px')
+      .style('fill', 'currentColor')
+      .text('Year');
+
+    // Y-axis
+    const yAxis = d3.axisLeft(yScale)
+      .tickFormat(d => `${d}°F`);
+    g.append('g')
+      .attr('class', 'y-axis')
+      .call(yAxis)
+      .selectAll('text')
+      .style('font-size', '12px');
+
+    // Y-axis label
+    g.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('y', -45)
+      .attr('x', -innerHeight / 2)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '14px')
+      .style('fill', 'currentColor')
+      .text('Temperature (°F)');
+
+    // Title showing the date
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', -35)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '16px')
+      .style('font-weight', 'bold')
+      .style('fill', 'currentColor')
+      .text(`Temperature History for ${expandedDay.label}`);
+
+    // Back button
+    const backButton = g.append('g')
+      .attr('class', 'back-button')
+      .attr('transform', 'translate(0, -40)')
+      .style('cursor', 'pointer')
+      .on('click', () => setExpandedDay(null));
+
+    backButton.append('rect')
+      .attr('x', -10)
+      .attr('y', -12)
+      .attr('width', 60)
+      .attr('height', 24)
+      .attr('rx', 4)
+      .attr('fill', '#444')
+      .attr('stroke', '#666');
+
+    backButton.append('text')
+      .attr('x', 20)
+      .attr('y', 4)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '12px')
+      .style('fill', '#fff')
+      .text('← Back');
+
+    // Legend
+    const legend = g.append('g')
+      .attr('class', 'legend')
+      .attr('transform', `translate(${innerWidth - 180}, -40)`);
+
+    const legendData = [
+      { type: 'min', label: 'Low' },
+      { type: 'mean', label: 'Avg' },
+      { type: 'max', label: 'High' }
+    ];
+
+    legendData.forEach((d, i) => {
+      const legendRow = legend.append('g')
+        .attr('transform', `translate(${i * 60}, 0)`);
+      
+      legendRow.append('circle')
+        .attr('r', 5)
+        .attr('fill', colorScale(d.type))
+        .attr('opacity', 0.7);
+      
+      legendRow.append('text')
+        .attr('x', 10)
+        .attr('y', 4)
+        .style('font-size', '12px')
+        .style('fill', 'currentColor')
+        .text(d.label);
+    });
+
+  }, [data, expandedDay]);
+
+  // Render main swarm plot view
+  useEffect(() => {
+    if (!data || data.length === 0 || !svgRef.current || expandedDay) return;
 
     // Get container dimensions
     const container = containerRef.current;
@@ -185,6 +405,25 @@ export default function SwarmPlot({ data, selectedDays }) {
       .style('fill', 'currentColor')
       .text('Temperature (°F)');
 
+    // Clickable areas behind each swarm column
+    dayLabels.forEach(({ key, label }) => {
+      g.append('rect')
+        .attr('class', 'clickable-area')
+        .attr('x', xScale(key))
+        .attr('y', 0)
+        .attr('width', xScale.bandwidth())
+        .attr('height', innerHeight)
+        .attr('fill', 'transparent')
+        .style('cursor', 'pointer')
+        .on('click', () => setExpandedDay({ key, label }))
+        .on('mouseenter', function() {
+          d3.select(this).attr('fill', 'rgba(100, 108, 255, 0.1)');
+        })
+        .on('mouseleave', function() {
+          d3.select(this).attr('fill', 'transparent');
+        });
+    });
+
     // Draw regular points (non-latest years)
     g.selectAll('circle.regular')
       .data(allPoints.filter(d => !d.isLatest))
@@ -197,6 +436,7 @@ export default function SwarmPlot({ data, selectedDays }) {
       .attr('opacity', 0.5)
       .attr('stroke', d => colorScale(d.type))
       .attr('stroke-width', 0.5)
+      .style('pointer-events', 'none')
       .append('title')
       .text(d => `${d.date}\n${d.type === 'min' ? 'Low' : d.type === 'max' ? 'High' : 'Avg'}: ${d.temp}°F`);
 
@@ -212,6 +452,7 @@ export default function SwarmPlot({ data, selectedDays }) {
       .attr('opacity', 1)
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
+      .style('pointer-events', 'none')
       .append('title')
       .text(d => `${d.date} (Latest)\n${d.type === 'min' ? 'Low' : d.type === 'max' ? 'High' : 'Avg'}: ${d.temp}°F`);
 
@@ -229,6 +470,7 @@ export default function SwarmPlot({ data, selectedDays }) {
         .style('font-size', '11px')
         .style('fill', '#d6604d')
         .style('font-weight', 'bold')
+        .style('pointer-events', 'none')
         .text(stats?.high != null ? `${stats.high}y` : '—');
       
       // Low label (below)
@@ -240,6 +482,7 @@ export default function SwarmPlot({ data, selectedDays }) {
         .style('font-size', '11px')
         .style('fill', '#4393c3')
         .style('font-weight', 'bold')
+        .style('pointer-events', 'none')
         .text(stats?.low != null ? `${stats.low}y` : '—');
     });
 
@@ -286,11 +529,14 @@ export default function SwarmPlot({ data, selectedDays }) {
       .style('fill', 'currentColor')
       .text(`${maxYear}`);
 
-  }, [data, selectedDays]);
+  }, [data, selectedDays, expandedDay]);
 
   return (
     <div ref={containerRef} className="swarm-plot-container">
       <svg ref={svgRef}></svg>
+      {!expandedDay && (
+        <p className="click-hint">Click on a day to see year-by-year detail</p>
+      )}
     </div>
   );
 }
