@@ -17,8 +17,8 @@ export default function SwarmPlot({ data, selectedDays }) {
     // Get container dimensions
     const container = containerRef.current;
     const width = container.clientWidth;
-    const height = 500;
-    const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+    const height = 560; // Increased for labels
+    const margin = { top: 60, right: 40, bottom: 80, left: 60 }; // Increased top/bottom for labels
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
@@ -40,6 +40,9 @@ export default function SwarmPlot({ data, selectedDays }) {
     );
 
     if (filteredData.length === 0) return;
+
+    // Find the most recent year in the data
+    const maxYear = d3.max(filteredData, d => d.year);
 
     // Create x scale - categorical by month-day
     const dayLabels = selectedDays.map(d => {
@@ -85,6 +88,7 @@ export default function SwarmPlot({ data, selectedDays }) {
           const temp = type === 'min' ? d.temp_min : type === 'max' ? d.temp_max : d.temp_mean;
           const targetX = xScale(dayKey) + xScale.bandwidth() * (0.5 + typeOffset[type]);
           const targetY = yScale(temp);
+          const isLatest = d.year === maxYear;
           allPoints.push({
             dayKey,
             type,
@@ -94,9 +98,45 @@ export default function SwarmPlot({ data, selectedDays }) {
             targetX,
             targetY,
             x: targetX,
-            y: targetY
+            y: targetY,
+            isLatest
           });
         });
+      });
+    });
+
+    // Calculate "years since" stats for each day
+    const yearsSinceStats = new Map();
+    dataByDay.forEach((dayData, dayKey) => {
+      // Find the latest year's data for this day
+      const latestData = dayData.find(d => d.year === maxYear);
+      if (!latestData) {
+        yearsSinceStats.set(dayKey, { low: null, high: null });
+        return;
+      }
+      
+      const latestLow = latestData.temp_min;
+      const latestHigh = latestData.temp_max;
+      
+      // Find years with temp at least as low (i.e., <= latestLow)
+      const yearsAsLow = dayData
+        .filter(d => d.year !== maxYear && d.temp_min <= latestLow)
+        .map(d => d.year);
+      
+      // Find years with temp at least as high (i.e., >= latestHigh)
+      const yearsAsHigh = dayData
+        .filter(d => d.year !== maxYear && d.temp_max >= latestHigh)
+        .map(d => d.year);
+      
+      // Calculate years since (most recent matching year)
+      const mostRecentLow = yearsAsLow.length > 0 ? Math.max(...yearsAsLow) : null;
+      const mostRecentHigh = yearsAsHigh.length > 0 ? Math.max(...yearsAsHigh) : null;
+      
+      yearsSinceStats.set(dayKey, {
+        low: mostRecentLow ? maxYear - mostRecentLow : null,
+        high: mostRecentHigh ? maxYear - mostRecentHigh : null,
+        latestLow,
+        latestHigh
       });
     });
 
@@ -145,24 +185,68 @@ export default function SwarmPlot({ data, selectedDays }) {
       .style('fill', 'currentColor')
       .text('Temperature (°F)');
 
-    // Draw points
-    g.selectAll('circle')
-      .data(allPoints)
+    // Draw regular points (non-latest years)
+    g.selectAll('circle.regular')
+      .data(allPoints.filter(d => !d.isLatest))
       .join('circle')
+      .attr('class', 'regular')
       .attr('cx', d => d.x)
       .attr('cy', d => d.y)
       .attr('r', radius)
       .attr('fill', d => colorScale(d.type))
-      .attr('opacity', 0.6)
+      .attr('opacity', 0.5)
       .attr('stroke', d => colorScale(d.type))
       .attr('stroke-width', 0.5)
       .append('title')
       .text(d => `${d.date}\n${d.type === 'min' ? 'Low' : d.type === 'max' ? 'High' : 'Avg'}: ${d.temp}°F`);
 
+    // Draw latest year points with highlighting
+    g.selectAll('circle.latest')
+      .data(allPoints.filter(d => d.isLatest))
+      .join('circle')
+      .attr('class', 'latest')
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y)
+      .attr('r', radius + 2)
+      .attr('fill', d => colorScale(d.type))
+      .attr('opacity', 1)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+      .append('title')
+      .text(d => `${d.date} (Latest)\n${d.type === 'min' ? 'Low' : d.type === 'max' ? 'High' : 'Avg'}: ${d.temp}°F`);
+
+    // Draw "years since" labels above and below each swarm
+    dayLabels.forEach(({ key }) => {
+      const stats = yearsSinceStats.get(key);
+      const xPos = xScale(key) + xScale.bandwidth() / 2;
+      
+      // High label (above)
+      g.append('text')
+        .attr('class', 'years-since-label high')
+        .attr('x', xPos)
+        .attr('y', -25)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '11px')
+        .style('fill', '#d6604d')
+        .style('font-weight', 'bold')
+        .text(stats?.high != null ? `${stats.high}y` : '—');
+      
+      // Low label (below)
+      g.append('text')
+        .attr('class', 'years-since-label low')
+        .attr('x', xPos)
+        .attr('y', innerHeight + 45)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '11px')
+        .style('fill', '#4393c3')
+        .style('font-weight', 'bold')
+        .text(stats?.low != null ? `${stats.low}y` : '—');
+    });
+
     // Legend
     const legend = g.append('g')
       .attr('class', 'legend')
-      .attr('transform', `translate(${innerWidth - 100}, -20)`);
+      .attr('transform', `translate(${innerWidth - 180}, -40)`);
 
     const legendData = [
       { type: 'min', label: 'Low' },
@@ -186,6 +270,21 @@ export default function SwarmPlot({ data, selectedDays }) {
         .style('fill', 'currentColor')
         .text(d.label);
     });
+
+    // Latest year indicator in legend
+    legend.append('circle')
+      .attr('cx', 180)
+      .attr('r', 5)
+      .attr('fill', '#999')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2);
+    
+    legend.append('text')
+      .attr('x', 190)
+      .attr('y', 4)
+      .style('font-size', '12px')
+      .style('fill', 'currentColor')
+      .text(`${maxYear}`);
 
   }, [data, selectedDays]);
 

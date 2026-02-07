@@ -81,6 +81,26 @@
   color: #646cff;
 }
 
+.nav-button {
+  padding: 0.5rem 1rem;
+  font-size: 1.2rem;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #2a2a2a;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-button:hover {
+  border-color: #646cff;
+  background-color: #3a3a3a;
+}
+
+.nav-button:active {
+  transform: scale(0.95);
+}
+
 .swarm-plot-container {
   width: 100%;
   background: rgba(255, 255, 255, 0.02);
@@ -134,6 +154,15 @@
   .data-source-selector select {
     background-color: #fff;
     border-color: #ccc;
+  }
+  
+  .nav-button {
+    background-color: #fff;
+    border-color: #ccc;
+  }
+  
+  .nav-button:hover {
+    background-color: #f0f0f0;
   }
   
   .swarm-plot-container {

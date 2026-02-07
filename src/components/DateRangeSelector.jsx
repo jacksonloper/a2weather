@@ -33,6 +33,17 @@ export default function DateRangeSelector({
     onDaysRangeChange(parseInt(e.target.value, 10));
   };
 
+  // Navigate by 2n+1 days (full window width)
+  const stepDays = 2 * daysRange + 1;
+  
+  const handlePrev = () => {
+    onCenterDateChange(subDays(centerDate, stepDays));
+  };
+  
+  const handleNext = () => {
+    onCenterDateChange(addDays(centerDate, stepDays));
+  };
+
   const daysInMonth = getDaysInMonth(new Date(2000, month - 1, 1));
 
   const months = [
@@ -47,6 +58,14 @@ export default function DateRangeSelector({
 
   return (
     <div className="date-range-selector">
+      <button 
+        className="nav-button" 
+        onClick={handlePrev}
+        title={`Go back ${stepDays} days`}
+      >
+        ◀
+      </button>
+      
       <div className="selector-group">
         <label htmlFor="month-select">Month:</label>
         <select 
@@ -89,6 +108,14 @@ export default function DateRangeSelector({
       <div className="range-display">
         Showing: <strong>{rangeText}</strong>
       </div>
+      
+      <button 
+        className="nav-button" 
+        onClick={handleNext}
+        title={`Go forward ${stepDays} days`}
+      >
+        ▶
+      </button>
     </div>
   );
 }
