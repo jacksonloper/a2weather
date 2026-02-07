@@ -1,6 +1,6 @@
 # Ann Arbor Historical Weather
 
-A lightweight React + Vite website displaying historical weather data for Ann Arbor, Michigan.
+A lightweight React + Vite website displaying historical weather data for Ann Arbor, Michigan.  Live at https://main--a2weather.netlify.app/ and production at https://a2weather.netlify.app/
 
 ## Features
 
