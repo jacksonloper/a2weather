@@ -7,7 +7,16 @@ import './App.css';
 
 // Available data sources
 const DATA_SOURCES = [
-  { id: 'openmeteo', name: 'Open-Meteo', path: '/data/openmeteo/temps.csv' }
+  { 
+    id: 'openmeteo', 
+    name: 'Open-Meteo', 
+    path: '/data/openmeteo/temps.csv',
+    location: {
+      name: 'Ann Arbor, MI',
+      latitude: 42.2808,
+      longitude: -83.7430
+    }
+  }
 ];
 
 function App() {
@@ -102,6 +111,12 @@ function App() {
     };
   }, [data]);
 
+  // Get current source config for display
+  const currentSource = useMemo(() => 
+    DATA_SOURCES.find(s => s.id === source),
+    [source]
+  );
+
   return (
     <div className="app">
       <header className="app-header">
@@ -150,6 +165,11 @@ function App() {
       <footer className="app-footer">
         <p>
           Data source: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
+          {currentSource?.location && (
+            <span className="location-info">
+              {' '}| Location: {currentSource.location.name} ({currentSource.location.latitude}°, {currentSource.location.longitude}°)
+            </span>
+          )}
         </p>
       </footer>
     </div>
