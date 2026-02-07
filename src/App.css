@@ -1,0 +1,146 @@
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.app-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.app-header .subtitle {
+  color: #888;
+  font-size: 1.1rem;
+}
+
+.app-main {
+  flex: 1;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  align-items: center;
+}
+
+.data-source-selector,
+.date-range-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.selector-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.selector-group label {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.selector-group select,
+.data-source-selector select {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #2a2a2a;
+  color: inherit;
+  cursor: pointer;
+}
+
+.selector-group select:hover,
+.data-source-selector select:hover {
+  border-color: #646cff;
+}
+
+.range-display {
+  margin-left: 1rem;
+  font-size: 0.95rem;
+}
+
+.range-display strong {
+  color: #646cff;
+}
+
+.swarm-plot-container {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.swarm-plot-container svg {
+  display: block;
+  width: 100%;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.2rem;
+}
+
+.error {
+  color: #ff6b6b;
+}
+
+.stats {
+  text-align: center;
+  margin-top: 1rem;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.app-footer {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #333;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.app-footer a {
+  color: #646cff;
+}
+
+/* Light mode adjustments */
+@media (prefers-color-scheme: light) {
+  .controls {
+    background: rgba(0, 0, 0, 0.03);
+  }
+  
+  .selector-group select,
+  .data-source-selector select {
+    background-color: #fff;
+    border-color: #ccc;
+  }
+  
+  .swarm-plot-container {
+    background: rgba(0, 0, 0, 0.02);
+  }
+  
+  .app-footer {
+    border-top-color: #ddd;
+  }
+}
