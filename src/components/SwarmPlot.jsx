@@ -56,7 +56,7 @@ export default function SwarmPlot({ data, selectedDays }) {
       .padding(0.2);
 
     // Create y scale - temperature
-    const allTemps = filteredData.flatMap(d => [d.temp_min, d.temp_max]);
+    const allTemps = filteredData.flatMap(d => [d.temp_min, d.temp_max, d.temp_mean]);
     const yExtent = d3.extent(allTemps);
     const yPadding = (yExtent[1] - yExtent[0]) * 0.1;
     
@@ -83,14 +83,18 @@ export default function SwarmPlot({ data, selectedDays }) {
       tempTypes.forEach(type => {
         dayData.forEach(d => {
           const temp = type === 'min' ? d.temp_min : type === 'max' ? d.temp_max : d.temp_mean;
+          const targetX = xScale(dayKey) + xScale.bandwidth() * (0.5 + typeOffset[type]);
+          const targetY = yScale(temp);
           allPoints.push({
             dayKey,
             type,
             temp,
             year: d.year,
             date: d.date,
-            x: xScale(dayKey) + xScale.bandwidth() * (0.5 + typeOffset[type]),
-            y: yScale(temp)
+            targetX,
+            targetY,
+            x: targetX,
+            y: targetY
           });
         });
       });
@@ -102,8 +106,8 @@ export default function SwarmPlot({ data, selectedDays }) {
     
     grouped.forEach((points) => {
       const simulation = d3.forceSimulation(points)
-        .force('x', d3.forceX(d => d.x).strength(0.8))
-        .force('y', d3.forceY(d => d.y).strength(1))
+        .force('x', d3.forceX(d => d.targetX).strength(0.8))
+        .force('y', d3.forceY(d => d.targetY).strength(1))
         .force('collide', d3.forceCollide(radius + 0.5))
         .stop();
 

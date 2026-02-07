@@ -56,7 +56,7 @@ function App() {
         }
         
         const csvText = await response.text();
-        const lines = csvText.trim().split('\n');
+        const lines = csvText.trim().split('\n').map(line => line.replace(/\r$/, ''));
         const headers = lines[0].split(',');
         
         const parsedData = lines.slice(1).map(line => {
