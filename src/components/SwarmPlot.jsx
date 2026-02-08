@@ -13,6 +13,13 @@ const TYPE_LABELS = {
   max: 'High'
 };
 
+// Layout positioning constants for expanded view
+const EXPANDED_LAYOUT = {
+  TITLE_Y_OFFSET: -40,      // Title position above chart
+  BACK_BUTTON_Y_OFFSET: -15, // Back button position
+  LEGEND_Y_OFFSET: 55        // Legend position below x-axis
+};
+
 /**
  * SwarmPlot component for displaying temperature data
  * @param {Object} props
@@ -182,7 +189,7 @@ export default function SwarmPlot({ data, selectedDays, onExpandedChange }) {
     // Title showing the date - moved higher to avoid overlap
     g.append('text')
       .attr('x', innerWidth / 2)
-      .attr('y', -40)
+      .attr('y', EXPANDED_LAYOUT.TITLE_Y_OFFSET)
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
       .style('font-weight', 'bold')
@@ -192,7 +199,7 @@ export default function SwarmPlot({ data, selectedDays, onExpandedChange }) {
     // Back button - positioned at left
     const backButton = g.append('g')
       .attr('class', 'back-button')
-      .attr('transform', 'translate(0, -15)')
+      .attr('transform', `translate(0, ${EXPANDED_LAYOUT.BACK_BUTTON_Y_OFFSET})`)
       .style('cursor', 'pointer')
       .on('click', () => setExpandedDay(null));
 
@@ -216,7 +223,7 @@ export default function SwarmPlot({ data, selectedDays, onExpandedChange }) {
     // Legend - positioned at bottom center to avoid mobile overlap
     const legend = g.append('g')
       .attr('class', 'legend')
-      .attr('transform', `translate(${innerWidth / 2 - 90}, ${innerHeight + 55})`);
+      .attr('transform', `translate(${innerWidth / 2 - 90}, ${innerHeight + EXPANDED_LAYOUT.LEGEND_Y_OFFSET})`);
 
     const legendData = [
       { type: 'min', label: TYPE_LABELS.min },

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { addDays, subDays } from 'date-fns';
 import SwarmPlot from './components/SwarmPlot';
 import DateRangeSelector from './components/DateRangeSelector';
@@ -25,6 +25,11 @@ function App() {
   const [error, setError] = useState(null);
   const [source, setSource] = useState('openmeteo');
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Memoize the expanded change callback to prevent unnecessary re-renders
+  const handleExpandedChange = useCallback((expanded) => {
+    setIsExpanded(expanded);
+  }, []);
   
   // Default to today's date
   const today = new Date();
@@ -152,7 +157,7 @@ function App() {
         
         {!loading && !error && data.length > 0 && (
           <>
-            <SwarmPlot data={data} selectedDays={selectedDays} onExpandedChange={setIsExpanded} />
+            <SwarmPlot data={data} selectedDays={selectedDays} onExpandedChange={handleExpandedChange} />
             {stats && (
               <div className="stats">
                 <p>
