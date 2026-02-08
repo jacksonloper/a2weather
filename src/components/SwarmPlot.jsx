@@ -18,11 +18,19 @@ const TYPE_LABELS = {
  * @param {Object} props
  * @param {Array} props.data - Array of {date, month, day, temp_min, temp_max, temp_mean, year}
  * @param {Array} props.selectedDays - Array of {month, day} to highlight
+ * @param {Function} props.onExpandedChange - Callback when expanded state changes
  */
-export default function SwarmPlot({ data, selectedDays }) {
+export default function SwarmPlot({ data, selectedDays, onExpandedChange }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [expandedDay, setExpandedDay] = useState(null);
+
+  // Notify parent when expanded state changes
+  useEffect(() => {
+    if (onExpandedChange) {
+      onExpandedChange(expandedDay !== null);
+    }
+  }, [expandedDay, onExpandedChange]);
 
   // Memoize filtered and sorted day data for expanded view
   const expandedDayData = useMemo(() => {
@@ -109,30 +117,17 @@ export default function SwarmPlot({ data, selectedDays }) {
       });
     }
 
-    // Draw lines connecting points for each temp type
+    // Draw scatter points for each temp type (no connecting lines)
     const tempTypes = ['min', 'mean', 'max'];
     tempTypes.forEach(type => {
-      const lineData = dayData.map(d => ({
+      const pointData = dayData.map(d => ({
         year: d.year,
         temp: getTempByType(d, type)
       }));
 
-      // Draw line
-      const line = d3.line()
-        .x(d => xScale(d.year))
-        .y(d => yScale(d.temp));
-
-      g.append('path')
-        .datum(lineData)
-        .attr('fill', 'none')
-        .attr('stroke', colorScale(type))
-        .attr('stroke-width', 1.5)
-        .attr('opacity', 0.6)
-        .attr('d', line);
-
-      // Draw points
+      // Draw points only (no line connecting them)
       g.selectAll(`circle.${type}`)
-        .data(lineData)
+        .data(pointData)
         .join('circle')
         .attr('class', type)
         .attr('cx', d => xScale(d.year))
@@ -184,20 +179,20 @@ export default function SwarmPlot({ data, selectedDays }) {
       .style('fill', 'currentColor')
       .text('Temperature (°F)');
 
-    // Title showing the date
+    // Title showing the date - moved higher to avoid overlap
     g.append('text')
       .attr('x', innerWidth / 2)
-      .attr('y', -35)
+      .attr('y', -40)
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
       .style('font-weight', 'bold')
       .style('fill', 'currentColor')
       .text(`Temperature History for ${expandedDay.label}`);
 
-    // Back button
+    // Back button - positioned at left
     const backButton = g.append('g')
       .attr('class', 'back-button')
-      .attr('transform', 'translate(0, -40)')
+      .attr('transform', 'translate(0, -15)')
       .style('cursor', 'pointer')
       .on('click', () => setExpandedDay(null));
 
@@ -218,10 +213,10 @@ export default function SwarmPlot({ data, selectedDays }) {
       .style('fill', '#fff')
       .text('← Back');
 
-    // Legend
+    // Legend - positioned at bottom center to avoid mobile overlap
     const legend = g.append('g')
       .attr('class', 'legend')
-      .attr('transform', `translate(${innerWidth - 180}, -40)`);
+      .attr('transform', `translate(${innerWidth / 2 - 90}, ${innerHeight + 55})`);
 
     const legendData = [
       { type: 'min', label: TYPE_LABELS.min },

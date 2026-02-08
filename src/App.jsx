@@ -24,6 +24,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [source, setSource] = useState('openmeteo');
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Default to today's date
   const today = new Date();
@@ -125,19 +126,21 @@ function App() {
       </header>
       
       <main className="app-main">
-        <div className="controls">
-          <DataSourceSelector
-            source={source}
-            sources={DATA_SOURCES}
-            onSourceChange={setSource}
-          />
-          <DateRangeSelector
-            centerDate={centerDate}
-            daysRange={daysRange}
-            onCenterDateChange={setCenterDate}
-            onDaysRangeChange={setDaysRange}
-          />
-        </div>
+        {!isExpanded && (
+          <div className="controls">
+            <DataSourceSelector
+              source={source}
+              sources={DATA_SOURCES}
+              onSourceChange={setSource}
+            />
+            <DateRangeSelector
+              centerDate={centerDate}
+              daysRange={daysRange}
+              onCenterDateChange={setCenterDate}
+              onDaysRangeChange={setDaysRange}
+            />
+          </div>
+        )}
 
         {loading && (
           <div className="loading">Loading weather data...</div>
@@ -149,7 +152,7 @@ function App() {
         
         {!loading && !error && data.length > 0 && (
           <>
-            <SwarmPlot data={data} selectedDays={selectedDays} />
+            <SwarmPlot data={data} selectedDays={selectedDays} onExpandedChange={setIsExpanded} />
             {stats && (
               <div className="stats">
                 <p>
