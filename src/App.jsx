@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { addDays, subDays } from 'date-fns';
 import SwarmPlot from './components/SwarmPlot';
 import DateRangeSelector from './components/DateRangeSelector';
@@ -24,6 +24,12 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [source, setSource] = useState('openmeteo');
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Memoize the expanded change callback to prevent unnecessary re-renders
+  const handleExpandedChange = useCallback((expanded) => {
+    setIsExpanded(expanded);
+  }, []);
   
   // Default to today's date
   const today = new Date();
@@ -125,19 +131,21 @@ function App() {
       </header>
       
       <main className="app-main">
-        <div className="controls">
-          <DataSourceSelector
-            source={source}
-            sources={DATA_SOURCES}
-            onSourceChange={setSource}
-          />
-          <DateRangeSelector
-            centerDate={centerDate}
-            daysRange={daysRange}
-            onCenterDateChange={setCenterDate}
-            onDaysRangeChange={setDaysRange}
-          />
-        </div>
+        {!isExpanded && (
+          <div className="controls">
+            <DataSourceSelector
+              source={source}
+              sources={DATA_SOURCES}
+              onSourceChange={setSource}
+            />
+            <DateRangeSelector
+              centerDate={centerDate}
+              daysRange={daysRange}
+              onCenterDateChange={setCenterDate}
+              onDaysRangeChange={setDaysRange}
+            />
+          </div>
+        )}
 
         {loading && (
           <div className="loading">Loading weather data...</div>
@@ -149,7 +157,7 @@ function App() {
         
         {!loading && !error && data.length > 0 && (
           <>
-            <SwarmPlot data={data} selectedDays={selectedDays} />
+            <SwarmPlot data={data} selectedDays={selectedDays} onExpandedChange={handleExpandedChange} />
             {stats && (
               <div className="stats">
                 <p>

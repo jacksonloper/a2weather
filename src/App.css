@@ -113,6 +113,14 @@
   width: 100%;
 }
 
+.swarm-plot-container .click-hint {
+  text-align: center;
+  color: #888;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
 .loading,
 .error {
   text-align: center;
