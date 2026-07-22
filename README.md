@@ -2,12 +2,26 @@
 
 A lightweight React + Vite website displaying historical weather data for Ann Arbor, Michigan.  Live at https://main--a2weather.netlify.app/ and production at https://a2weather.netlify.app/
 
+The site has two pages (switch with the nav at the top, or via the URL hash):
+
+- **Ann Arbor Temps** (`#/weather`) — daily temperature history
+- **North America Fronts** (`#/fronts`) — an animated player of surface weather fronts
+
 ## Features
 
+### Ann Arbor Temps
 - **Swarm Plot Visualization**: View daily low, average, and high temperatures as a bee swarm plot
 - **Date Selection**: Select any day of the year and view ± 0-14 days of historical data
 - **Multiple Data Sources**: Currently supports Open-Meteo (more sources planned)
 - **75+ Years of Data**: Historical records from 1950 to present
+
+### North America Fronts
+- **Playable surface analysis**: Press play to animate weather maps at full **3-hourly** resolution (8 frames/day)
+- **24-day episodes**: Rather than shipping the entire 2003–2018 record, the page offers a few curated 24-day episodes around notable events (2011 blizzard, 2011 tornado outbreak, Hurricane Sandy). Only the selected episode (~0.5 MB) is downloaded
+- **Zoom & pan**: Pinch/drag on touch, scroll/drag with a mouse, or use the on-map zoom buttons — fully mobile friendly
+- **Real NWS symbology**: Cold fronts (blue triangles), warm fronts (red semicircles), stationary and occluded fronts, troughs, and H/L pressure centers with millibar values
+- **Scrub & step**: Drag the timeline, step frame-by-frame, switch episodes, and adjust playback speed
+- **Source**: [NWS Coded Surface Bulletins](https://zenodo.org/records/2646544) (Zenodo record 2646544), high-resolution analysis where available
 
 ## Tech Stack
 
@@ -55,16 +69,25 @@ Or trigger the GitHub Action:
 ```
 ├── public/
 │   └── data/
-│       └── openmeteo/
-│           └── temps.csv       # Temperature data
+│       ├── openmeteo/
+│       │   └── temps.csv       # Temperature data
+│       └── fronts/             # Weather fronts frames + basemap
+│           ├── index.json
+│           ├── basemap.json
+│           └── episodes/       # one file per 24-day episode
 ├── scripts/
-│   └── fetch_openmeteo.py      # Data ingestion script
+│   ├── fetch_openmeteo.py      # Temperature data ingestion
+│   ├── process_fronts.py       # Fronts JSON pre-processor
+│   └── build_basemap.py        # North America basemap builder
 ├── src/
 │   ├── components/
 │   │   ├── DataSourceSelector.jsx
 │   │   ├── DateRangeSelector.jsx
-│   │   └── SwarmPlot.jsx
-│   ├── App.jsx
+│   │   ├── SwarmPlot.jsx
+│   │   ├── WeatherPage.jsx     # Ann Arbor temps page
+│   │   ├── FrontsPage.jsx      # Fronts player page
+│   │   └── frontsGeometry.js   # Front-symbol drawing helpers
+│   ├── App.jsx                 # Hash router + nav
 │   ├── App.css
 │   ├── main.jsx
 │   └── index.css
@@ -75,12 +98,38 @@ Or trigger the GitHub Action:
 └── package.json
 ```
 
+### Weather Fronts Data
+
+The fronts player is driven by pre-processed JSON under `public/data/fronts/`
+(one file per episode under `episodes/`, plus `basemap.json` and `index.json`).
+Episodes are 24-day windows at full 3-hourly resolution (~0.5 MB each); edit the
+`EPISODES` list in `process_fronts.py` to change which windows are exported.
+To regenerate:
+
+```bash
+# 1. Download the source archive (77 MB) from Zenodo
+curl -sSL -o CODSUS.tgz \
+  https://zenodo.org/api/records/2646544/files/CODSUS_JSON_2003-2018.tgz/content
+
+# 2. Build the episode frame files
+python scripts/process_fronts.py CODSUS.tgz
+
+# 3. Rebuild the North America basemap (needs the two Natural Earth GeoJSON files)
+python scripts/build_basemap.py ne_110m_admin_0_countries.geojson \
+                                ne_110m_admin_1_states_provinces.geojson
+```
+
 ## Data Sources
 
 ### Open-Meteo
 - Free historical weather API
 - Data available from 1940 to present
 - Updates daily
+
+### NWS Coded Surface Bulletins
+- Locations of fronts, troughs, and pressure centers analyzed every 3 hours by the Weather Prediction Center
+- Coverage 2003–2018 ([Zenodo 2646544](https://zenodo.org/records/2646544))
+- Basemap from [Natural Earth](https://www.naturalearthdata.com/) 110m data
 
 ## License
 

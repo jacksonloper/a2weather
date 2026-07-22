@@ -1,0 +1,31 @@
+{
+  "source": "NWS Coded Surface Bulletins (Zenodo 2646544)",
+  "sourceUrl": "https://zenodo.org/records/2646544",
+  "resolution": "3-hourly",
+  "episodes": [
+    {
+      "id": "blizzard-2011",
+      "label": "Feb 2011 Blizzard",
+      "note": "The groundhog-day blizzard buried the Midwest and Northeast.",
+      "start": "2011-01-26",
+      "end": "2011-02-18",
+      "frames": 192
+    },
+    {
+      "id": "outbreak-2011",
+      "label": "Apr 2011 Tornado Outbreak",
+      "note": "The 2011 Super Outbreak \u2014 one of the largest on record.",
+      "start": "2011-04-14",
+      "end": "2011-05-07",
+      "frames": 192
+    },
+    {
+      "id": "sandy-2012",
+      "label": "Hurricane Sandy 2012",
+      "note": "Sandy's transition into a massive hybrid storm over the East.",
+      "start": "2012-10-18",
+      "end": "2012-11-10",
+      "frames": 192
+    }
+  ]
+}
