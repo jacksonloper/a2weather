@@ -309,21 +309,6 @@
   stroke-width: 0.8;
 }
 
-.fronts-center-letter {
-  font-weight: 700;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.55);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
-
-.fronts-center-pressure {
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.55);
-  stroke-width: 2.5px;
-  stroke-linejoin: round;
-}
-
 .fronts-legend {
   display: flex;
   flex-wrap: wrap;

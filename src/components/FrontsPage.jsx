@@ -182,32 +182,6 @@ export default function FrontsPage() {
         if (screen.length >= 2) drawFront(g, screen, type, scale);
       });
     });
-
-    const drawCenter = (pts, letter, color) => {
-      (pts || []).forEach(([lat, lon, pressure]) => {
-        const p = projection([lon, lat]);
-        if (!p || !isFinite(p[0])) return;
-        const cg = g.append('g').attr('transform', `translate(${p[0]},${p[1]})`);
-        cg.append('text')
-          .attr('class', 'fronts-center-letter')
-          .attr('text-anchor', 'middle')
-          .attr('dy', '0.35em')
-          .style('fill', color)
-          .style('font-size', `${16 * scale}px`)
-          .text(letter);
-        if (pressure != null) {
-          cg.append('text')
-            .attr('class', 'fronts-center-pressure')
-            .attr('text-anchor', 'middle')
-            .attr('y', 14 * scale)
-            .style('fill', color)
-            .style('font-size', `${9 * scale}px`)
-            .text(pressure);
-        }
-      });
-    };
-    drawCenter(frame.highs, 'H', '#2166ac');
-    drawCenter(frame.lows, 'L', '#b2182b');
   }, [frames, frameIndex, dims]);
 
   // Playback loop (loops within the episode).
@@ -249,8 +223,8 @@ export default function FrontsPage() {
       <header className="app-header">
         <h1>North America Weather Fronts</h1>
         <p className="subtitle">
-          Play 3-hourly NWS surface analyses — fronts, troughs &amp; pressure
-          centers — for 24-day episodes since 2003
+          Play 3-hourly NWS surface analyses — fronts &amp; troughs — for
+          24-day episodes since 2003
         </p>
       </header>
 
@@ -331,14 +305,6 @@ export default function FrontsPage() {
               {style.label}
             </span>
           ))}
-          <span className="fronts-legend-item">
-            <span className="fronts-swatch" style={{ background: '#2166ac' }}>H</span>
-            High pressure
-          </span>
-          <span className="fronts-legend-item">
-            <span className="fronts-swatch" style={{ background: '#b2182b' }}>L</span>
-            Low pressure
-          </span>
         </div>
       </main>
 
