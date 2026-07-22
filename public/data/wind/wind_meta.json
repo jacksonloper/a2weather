@@ -1,0 +1,17 @@
+{
+  "variable": "wind_100m",
+  "description": "Daily mean 100m wind (ERA5) as u/v components",
+  "source": "Open-Meteo ERA5 archive",
+  "units": "m/s",
+  "year": 2023,
+  "startDate": "2023-01-01",
+  "ndays": 365,
+  "lonMin": -125.0,
+  "latMin": 24.0,
+  "step": 1.0,
+  "nlon": 59,
+  "nlat": 27,
+  "scale": 100,
+  "speedMax": 11.3,
+  "bin": "wind_100m_2023.bin"
+}

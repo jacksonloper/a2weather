@@ -3,6 +3,7 @@ import { addDays, subDays } from 'date-fns';
 import SwarmPlot from './components/SwarmPlot';
 import DateRangeSelector from './components/DateRangeSelector';
 import DataSourceSelector from './components/DataSourceSelector';
+import WindMap from './components/WindMap';
 import './App.css';
 
 // Available data sources
@@ -20,6 +21,7 @@ const DATA_SOURCES = [
 ];
 
 function App() {
+  const [page, setPage] = useState('temperature');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -123,60 +125,92 @@ function App() {
     [source]
   );
 
+  const isWind = page === 'wind';
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Ann Arbor Historical Weather</h1>
-        <p className="subtitle">Daily temperature records for Ann Arbor, Michigan</p>
+        <h1>{isWind ? 'Continental US Wind Patterns' : 'Ann Arbor Historical Weather'}</h1>
+        <p className="subtitle">
+          {isWind
+            ? 'Animated historical 100 m wind flow across the continental United States'
+            : 'Daily temperature records for Ann Arbor, Michigan'}
+        </p>
+        <nav className="page-nav">
+          <button
+            className={`page-tab ${!isWind ? 'active' : ''}`}
+            onClick={() => setPage('temperature')}
+          >
+            Temperature
+          </button>
+          <button
+            className={`page-tab ${isWind ? 'active' : ''}`}
+            onClick={() => setPage('wind')}
+          >
+            Wind
+          </button>
+        </nav>
       </header>
-      
-      <main className="app-main">
-        {!isExpanded && (
-          <div className="controls">
-            <DataSourceSelector
-              source={source}
-              sources={DATA_SOURCES}
-              onSourceChange={setSource}
-            />
-            <DateRangeSelector
-              centerDate={centerDate}
-              daysRange={daysRange}
-              onCenterDateChange={setCenterDate}
-              onDaysRangeChange={setDaysRange}
-            />
-          </div>
-        )}
 
-        {loading && (
-          <div className="loading">Loading weather data...</div>
-        )}
-        
-        {error && (
-          <div className="error">Error: {error}</div>
-        )}
-        
-        {!loading && !error && data.length > 0 && (
+      <main className="app-main">
+        {isWind ? (
+          <WindMap />
+        ) : (
           <>
-            <SwarmPlot data={data} selectedDays={selectedDays} onExpandedChange={handleExpandedChange} />
-            {stats && (
-              <div className="stats">
-                <p>
-                  Showing data from <strong>{stats.yearRange}</strong> 
-                  {' '}({stats.totalRecords.toLocaleString()} total records)
-                </p>
+            {!isExpanded && (
+              <div className="controls">
+                <DataSourceSelector
+                  source={source}
+                  sources={DATA_SOURCES}
+                  onSourceChange={setSource}
+                />
+                <DateRangeSelector
+                  centerDate={centerDate}
+                  daysRange={daysRange}
+                  onCenterDateChange={setCenterDate}
+                  onDaysRangeChange={setDaysRange}
+                />
               </div>
+            )}
+
+            {loading && (
+              <div className="loading">Loading weather data...</div>
+            )}
+
+            {error && (
+              <div className="error">Error: {error}</div>
+            )}
+
+            {!loading && !error && data.length > 0 && (
+              <>
+                <SwarmPlot data={data} selectedDays={selectedDays} onExpandedChange={handleExpandedChange} />
+                {stats && (
+                  <div className="stats">
+                    <p>
+                      Showing data from <strong>{stats.yearRange}</strong>
+                      {' '}({stats.totalRecords.toLocaleString()} total records)
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
       </main>
-      
+
       <footer className="app-footer">
         <p>
           Data source: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
-          {currentSource?.location && (
+          {isWind ? (
             <span className="location-info">
-              {' '}| Location: {currentSource.location.name} ({currentSource.location.latitude}°, {currentSource.location.longitude}°)
+              {' '}| ERA5 100 m wind reanalysis, continental United States
             </span>
+          ) : (
+            currentSource?.location && (
+              <span className="location-info">
+                {' '}| Location: {currentSource.location.name} ({currentSource.location.latitude}°, {currentSource.location.longitude}°)
+              </span>
+            )
           )}
         </p>
       </footer>
