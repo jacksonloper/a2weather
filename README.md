@@ -16,10 +16,12 @@ The site has two pages (switch with the nav at the top, or via the URL hash):
 - **75+ Years of Data**: Historical records from 1950 to present
 
 ### North America Fronts
-- **Playable surface analysis**: Press play to animate one weather map per day from 2003 to 2018
+- **Playable surface analysis**: Press play to animate weather maps at full **3-hourly** resolution (8 frames/day)
+- **24-day episodes**: Rather than shipping the entire 2003–2018 record, the page offers a few curated 24-day episodes around notable events (2011 blizzard, 2011 tornado outbreak, Hurricane Sandy). Only the selected episode (~0.5 MB) is downloaded
+- **Zoom & pan**: Pinch/drag on touch, scroll/drag with a mouse, or use the on-map zoom buttons — fully mobile friendly
 - **Real NWS symbology**: Cold fronts (blue triangles), warm fronts (red semicircles), stationary and occluded fronts, troughs, and H/L pressure centers with millibar values
-- **Scrub & step**: Drag the timeline, step day-by-day, jump to any year, and adjust playback speed
-- **Source**: [NWS Coded Surface Bulletins](https://zenodo.org/records/2646544) (Zenodo record 2646544), one bulletin per day near 12:00 UTC
+- **Scrub & step**: Drag the timeline, step frame-by-frame, switch episodes, and adjust playback speed
+- **Source**: [NWS Coded Surface Bulletins](https://zenodo.org/records/2646544) (Zenodo record 2646544), high-resolution analysis where available
 
 ## Tech Stack
 
@@ -72,7 +74,7 @@ Or trigger the GitHub Action:
 │       └── fronts/             # Weather fronts frames + basemap
 │           ├── index.json
 │           ├── basemap.json
-│           └── 2003.json ...   # one file per year
+│           └── episodes/       # one file per 24-day episode
 ├── scripts/
 │   ├── fetch_openmeteo.py      # Temperature data ingestion
 │   ├── process_fronts.py       # Fronts JSON pre-processor
@@ -99,14 +101,17 @@ Or trigger the GitHub Action:
 ### Weather Fronts Data
 
 The fronts player is driven by pre-processed JSON under `public/data/fronts/`
-(per-year frame files plus `basemap.json` and `index.json`). To regenerate it:
+(one file per episode under `episodes/`, plus `basemap.json` and `index.json`).
+Episodes are 24-day windows at full 3-hourly resolution (~0.5 MB each); edit the
+`EPISODES` list in `process_fronts.py` to change which windows are exported.
+To regenerate:
 
 ```bash
 # 1. Download the source archive (77 MB) from Zenodo
 curl -sSL -o CODSUS.tgz \
   https://zenodo.org/api/records/2646544/files/CODSUS_JSON_2003-2018.tgz/content
 
-# 2. Build one daily frame per year (~1 MB/year)
+# 2. Build the episode frame files
 python scripts/process_fronts.py CODSUS.tgz
 
 # 3. Rebuild the North America basemap (needs the two Natural Earth GeoJSON files)

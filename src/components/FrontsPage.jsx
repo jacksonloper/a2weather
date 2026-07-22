@@ -10,18 +10,21 @@ const REGION = {
 
 const FRONT_TYPES = ['trough', 'stationary', 'occluded', 'warm', 'cold'];
 
-// Playback speeds: frames (days) advanced per second.
+// Playback speeds in frames per second. Frames are 3-hourly, so 8 fps is
+// roughly one day of weather per second.
 const SPEEDS = [
-  { label: '0.5×', fps: 3 },
-  { label: '1×', fps: 6 },
-  { label: '2×', fps: 12 },
-  { label: '4×', fps: 24 },
+  { label: '0.5×', fps: 4 },
+  { label: '1×', fps: 8 },
+  { label: '2×', fps: 16 },
+  { label: '4×', fps: 30 },
 ];
+
+const MAX_ZOOM = 8;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function formatDate(frame) {
+function formatStamp(frame) {
   if (!frame) return '';
   const [y, m, d] = frame.date.split('-').map(Number);
   const hh = String(frame.hour).padStart(2, '0');
@@ -31,25 +34,24 @@ function formatDate(frame) {
 export default function FrontsPage() {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
-  const basemapGRef = useRef(null);
+  const zoomRootRef = useRef(null);
   const frontsGRef = useRef(null);
   const projectionRef = useRef(null);
-  const pathRef = useRef(null);
+  const zoomRef = useRef(null);
   const scaleRef = useRef(1);
 
   const [basemap, setBasemap] = useState(null);
   const [index, setIndex] = useState(null);
-  const [year, setYear] = useState(null);
+  const [episodeId, setEpisodeId] = useState(null);
   const [frames, setFrames] = useState([]);
   const [frameIndex, setFrameIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(1);
-  const [loadingYear, setLoadingYear] = useState(false);
+  const [loadingEpisode, setLoadingEpisode] = useState(false);
   const [error, setError] = useState(null);
   const [dims, setDims] = useState({ width: 900, height: 560 });
 
-  const yearCache = useRef(new Map());
-  const advancingRef = useRef(false);
+  const episodeCache = useRef(new Map());
 
   // Load index + basemap once.
   useEffect(() => {
@@ -60,39 +62,36 @@ export default function FrontsPage() {
       .then(([idx, base]) => {
         setIndex(idx);
         setBasemap(base);
-        if (idx.years?.length) setYear(idx.years[0].year);
+        if (idx.episodes?.length) setEpisodeId(idx.episodes[0].id);
       })
       .catch((e) => setError(`Failed to load fronts data: ${e.message}`));
   }, []);
 
-  // Load a year's frames (cached).
-  const loadYear = useCallback(async (yr) => {
-    if (yearCache.current.has(yr)) {
-      setFrames(yearCache.current.get(yr));
-      return yearCache.current.get(yr);
+  // Load an episode's frames (cached).
+  const loadEpisode = useCallback(async (id) => {
+    if (episodeCache.current.has(id)) {
+      setFrames(episodeCache.current.get(id));
+      return;
     }
-    setLoadingYear(true);
+    setLoadingEpisode(true);
     try {
-      const res = await fetch(`/data/fronts/${yr}.json`);
+      const res = await fetch(`/data/fronts/episodes/${id}.json`);
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
-      yearCache.current.set(yr, data);
+      episodeCache.current.set(id, data);
       setFrames(data);
-      return data;
     } catch (e) {
-      setError(`Failed to load ${yr}: ${e.message}`);
-      return [];
+      setError(`Failed to load episode: ${e.message}`);
     } finally {
-      setLoadingYear(false);
+      setLoadingEpisode(false);
     }
   }, []);
 
-  // Fetch frames whenever the selected year changes.
   useEffect(() => {
-    if (year == null) return;
-    advancingRef.current = false;
-    loadYear(year);
-  }, [year, loadYear]);
+    if (episodeId == null) return;
+    setFrameIndex(0);
+    loadEpisode(episodeId);
+  }, [episodeId, loadEpisode]);
 
   // Responsive sizing.
   useEffect(() => {
@@ -100,7 +99,7 @@ export default function FrontsPage() {
     if (!el) return;
     const update = () => {
       const width = el.clientWidth;
-      const height = Math.round(Math.max(360, Math.min(680, width * 0.62)));
+      const height = Math.round(Math.max(340, Math.min(640, width * 0.64)));
       setDims({ width, height });
     };
     update();
@@ -109,7 +108,7 @@ export default function FrontsPage() {
     return () => ro.disconnect();
   }, [basemap]);
 
-  // Build projection + draw static basemap when basemap / dims change.
+  // Build projection, draw the static basemap, and wire up pan/zoom.
   useEffect(() => {
     if (!basemap || !svgRef.current) return;
     const { width, height } = dims;
@@ -125,35 +124,41 @@ export default function FrontsPage() {
       .fitExtent([[8, 8], [width - 8, height - 8]], REGION);
     const path = d3.geoPath(projection);
     projectionRef.current = projection;
-    pathRef.current = path;
     scaleRef.current = Math.max(0.75, Math.min(1.4, width / 900));
 
-    // Ocean background.
+    // Fixed ocean background (stays put while the map pans/zooms above it).
     svg.append('rect')
       .attr('width', width).attr('height', height)
       .attr('class', 'fronts-ocean');
 
-    const basemapG = svg.append('g').attr('class', 'fronts-basemap');
-    // Land fill.
+    // Everything below receives the zoom transform.
+    const zoomRoot = svg.append('g').attr('class', 'fronts-zoom-root');
+    zoomRootRef.current = zoomRoot;
+
+    const basemapG = zoomRoot.append('g').attr('class', 'fronts-basemap');
     basemapG.append('path')
       .datum({ type: 'GeometryCollection', geometries: basemap.countries })
       .attr('d', path)
       .attr('class', 'fronts-land');
-    // State boundaries (light).
     basemapG.append('path')
       .datum({ type: 'GeometryCollection', geometries: basemap.states })
       .attr('d', path)
       .attr('class', 'fronts-states')
       .attr('fill', 'none');
-    // Country outlines (stronger).
     basemapG.append('path')
       .datum({ type: 'GeometryCollection', geometries: basemap.countries })
       .attr('d', path)
       .attr('class', 'fronts-borders')
       .attr('fill', 'none');
 
-    basemapGRef.current = basemapG;
-    frontsGRef.current = svg.append('g').attr('class', 'fronts-layer');
+    frontsGRef.current = zoomRoot.append('g').attr('class', 'fronts-layer');
+
+    const zoom = d3.zoom()
+      .scaleExtent([1, MAX_ZOOM])
+      .translateExtent([[0, 0], [width, height]])
+      .on('zoom', (event) => zoomRoot.attr('transform', event.transform));
+    zoomRef.current = zoom;
+    svg.call(zoom).on('dblclick.zoom', null);
   }, [basemap, dims]);
 
   // Draw the current frame's fronts + pressure centers.
@@ -167,7 +172,6 @@ export default function FrontsPage() {
     g.selectAll('*').remove();
     const scale = scaleRef.current;
 
-    // Fronts (draw troughs first so pipped fronts sit on top).
     FRONT_TYPES.forEach((type) => {
       const lines = frame[type];
       if (!lines) return;
@@ -179,7 +183,6 @@ export default function FrontsPage() {
       });
     });
 
-    // Pressure centers.
     const drawCenter = (pts, letter, color) => {
       (pts || []).forEach(([lat, lon, pressure]) => {
         const p = projection([lon, lat]);
@@ -207,44 +210,35 @@ export default function FrontsPage() {
     drawCenter(frame.lows, 'L', '#b2182b');
   }, [frames, frameIndex, dims]);
 
-  // Advance to the next year (or loop back to the first) at end of playback.
-  const goToNextYear = useCallback(() => {
-    if (!index?.years?.length) return;
-    const years = index.years.map((y) => y.year);
-    const pos = years.indexOf(year);
-    const next = years[(pos + 1) % years.length];
-    advancingRef.current = true;
-    setFrameIndex(0);
-    setYear(next);
-  }, [index, year]);
-
-  // Playback loop.
+  // Playback loop (loops within the episode).
   useEffect(() => {
     if (!playing || frames.length === 0) return;
     const fps = SPEEDS[speedIdx].fps;
     const id = setInterval(() => {
-      setFrameIndex((i) => {
-        if (i + 1 < frames.length) return i + 1;
-        if (!advancingRef.current) goToNextYear();
-        return i;
-      });
+      setFrameIndex((i) => (i + 1) % frames.length);
     }, 1000 / fps);
     return () => clearInterval(id);
-  }, [playing, speedIdx, frames, goToNextYear]);
+  }, [playing, speedIdx, frames]);
 
-  // Reset the advancing guard once new frames arrive.
-  useEffect(() => {
-    advancingRef.current = false;
-  }, [frames]);
+  // Zoom button helpers.
+  const zoomBy = (k) => {
+    if (!zoomRef.current || !svgRef.current) return;
+    d3.select(svgRef.current).transition().duration(250).call(zoomRef.current.scaleBy, k);
+  };
+  const zoomReset = () => {
+    if (!zoomRef.current || !svgRef.current) return;
+    d3.select(svgRef.current).transition().duration(300)
+      .call(zoomRef.current.transform, d3.zoomIdentity);
+  };
 
   const currentFrame = frames[Math.min(frameIndex, frames.length - 1)];
-  const years = index?.years?.map((y) => y.year) || [];
+  const episodes = index?.episodes || [];
+  const currentEpisode = episodes.find((e) => e.id === episodeId);
 
   const handleScrub = (e) => {
     setPlaying(false);
     setFrameIndex(Number(e.target.value));
   };
-
   const stepBy = (delta) => {
     setPlaying(false);
     setFrameIndex((i) => Math.max(0, Math.min(frames.length - 1, i + delta)));
@@ -255,8 +249,8 @@ export default function FrontsPage() {
       <header className="app-header">
         <h1>North America Weather Fronts</h1>
         <p className="subtitle">
-          Surface fronts, troughs &amp; pressure centers analyzed by the NWS,
-          one map per day since 2003
+          Play 3-hourly NWS surface analyses — fronts, troughs &amp; pressure
+          centers — for 24-day episodes since 2003
         </p>
       </header>
 
@@ -273,17 +267,17 @@ export default function FrontsPage() {
             {playing ? '❚❚ Pause' : '▶ Play'}
           </button>
 
-          <button className="nav-button" onClick={() => stepBy(-1)} aria-label="Previous day">‹</button>
-          <button className="nav-button" onClick={() => stepBy(1)} aria-label="Next day">›</button>
+          <button className="nav-button" onClick={() => stepBy(-1)} aria-label="Previous frame">‹</button>
+          <button className="nav-button" onClick={() => stepBy(1)} aria-label="Next frame">›</button>
 
           <div className="selector-group">
-            <label htmlFor="fronts-year">Year</label>
+            <label htmlFor="fronts-episode">Episode</label>
             <select
-              id="fronts-year"
-              value={year ?? ''}
-              onChange={(e) => { setPlaying(false); setFrameIndex(0); setYear(Number(e.target.value)); }}
+              id="fronts-episode"
+              value={episodeId ?? ''}
+              onChange={(e) => { setPlaying(false); setEpisodeId(e.target.value); }}
             >
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              {episodes.map((ep) => <option key={ep.id} value={ep.id}>{ep.label}</option>)}
             </select>
           </div>
 
@@ -299,7 +293,7 @@ export default function FrontsPage() {
           </div>
 
           <span className="fronts-date">
-            {loadingYear ? 'Loading…' : formatDate(currentFrame)}
+            {loadingEpisode ? 'Loading…' : formatStamp(currentFrame)}
           </span>
         </div>
 
@@ -315,7 +309,20 @@ export default function FrontsPage() {
 
         <div ref={containerRef} className="fronts-map-container">
           <svg ref={svgRef}></svg>
+          <div className="fronts-zoom-buttons">
+            <button onClick={() => zoomBy(1.6)} aria-label="Zoom in">+</button>
+            <button onClick={() => zoomBy(1 / 1.6)} aria-label="Zoom out">−</button>
+            <button onClick={zoomReset} aria-label="Reset zoom" title="Reset view">⤢</button>
+          </div>
         </div>
+
+        {currentEpisode && (
+          <p className="fronts-episode-note">
+            <strong>{currentEpisode.label}:</strong> {currentEpisode.note}
+            {' '}({currentEpisode.start} → {currentEpisode.end}, {currentEpisode.frames} frames).
+            Drag or pinch the map to zoom.
+          </p>
+        )}
 
         <div className="fronts-legend">
           {Object.entries(FRONT_STYLES).map(([type, style]) => (
@@ -341,7 +348,7 @@ export default function FrontsPage() {
           <a href="https://zenodo.org/records/2646544" target="_blank" rel="noopener noreferrer">
             NWS Coded Surface Bulletins (Zenodo 2646544)
           </a>
-          {' '}· one bulletin per day near 12:00 UTC, 2003–2018
+          {' '}· full 3-hourly resolution, high-resolution analysis where available
         </p>
       </footer>
     </>

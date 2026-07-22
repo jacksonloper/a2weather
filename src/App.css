@@ -230,6 +230,7 @@
 }
 
 .fronts-map-container {
+  position: relative;
   width: 100%;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 8px;
@@ -240,6 +241,53 @@
   display: block;
   width: 100%;
   height: auto;
+  /* Let d3-zoom own touch gestures (pinch/drag) instead of the browser. */
+  touch-action: none;
+  cursor: grab;
+}
+
+.fronts-map-container svg:active {
+  cursor: grabbing;
+}
+
+.fronts-zoom-buttons {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fronts-zoom-buttons button {
+  width: 34px;
+  height: 34px;
+  font-size: 1.2rem;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(20, 34, 45, 0.85);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fronts-zoom-buttons button:hover {
+  background: rgba(40, 60, 78, 0.95);
+  border-color: #646cff;
+}
+
+.fronts-episode-note {
+  margin: 0.75rem 0 0;
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.fronts-episode-note strong {
+  color: #646cff;
 }
 
 .fronts-ocean {

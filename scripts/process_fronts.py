@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
 Process the National Weather Service Coded Surface Bulletins dataset
-(Zenodo record 2646544) into compact per-year JSON files for the web app.
+(Zenodo record 2646544) into compact "episode" JSON files for the web app.
 
 The source archive contains one JSON bulletin every 3 hours since 2003,
 describing the locations of weather fronts, troughs, and pressure centers
 analyzed by the NWS Weather Prediction Center.
 
-For each day we keep a single bulletin (the one whose valid time is closest
-to 12:00 UTC), preferring the high-resolution (HR) analysis when available
-and falling back to the low-resolution (LR) analysis otherwise. Coordinates
-are rounded to one decimal degree to keep the payload small enough to ship
-to the browser.
+Shipping every bulletin for the whole 2003-2018 record would be far too much
+data for a web page, so instead we export a handful of short **episodes** at
+full 3-hourly time resolution. Each episode is a 24-day window around a
+notable weather event. For every 3-hour slot we keep the high-resolution (HR)
+analysis when available and fall back to the low-resolution (LR) analysis
+otherwise. Coordinates are rounded to one decimal degree (the native HR
+precision) to keep each episode around a megabyte.
 
 Usage:
     # Download the archive first (77 MB):
@@ -25,10 +27,37 @@ import os
 import re
 import sys
 import tarfile
+from datetime import date, timedelta
 
 OUTPUT_DIR = os.path.join(
     os.path.dirname(__file__), "..", "public", "data", "fronts"
 )
+
+# Curated 24-day episodes at full 3-hourly resolution. Each is chosen around a
+# memorable North American weather event so the animation has plenty of motion.
+EPISODES = [
+    {
+        "id": "blizzard-2011",
+        "label": "Feb 2011 Blizzard",
+        "note": "The groundhog-day blizzard buried the Midwest and Northeast.",
+        "start": date(2011, 1, 26),
+        "days": 24,
+    },
+    {
+        "id": "outbreak-2011",
+        "label": "Apr 2011 Tornado Outbreak",
+        "note": "The 2011 Super Outbreak — one of the largest on record.",
+        "start": date(2011, 4, 14),
+        "days": 24,
+    },
+    {
+        "id": "sandy-2012",
+        "label": "Hurricane Sandy 2012",
+        "note": "Sandy's transition into a massive hybrid storm over the East.",
+        "start": date(2012, 10, 18),
+        "days": 24,
+    },
+]
 
 # Frontal feature keys in the source JSON -> short names used by the web app.
 FRONT_KEYS = {
@@ -42,43 +71,45 @@ FRONT_KEYS = {
 NAME_RE = re.compile(r"Codsus_(\d{4})(\d{2})(\d{2})(\d{2})_(HR|LR)\.json$")
 
 
-def choose_bulletins(names):
-    """From all member names, pick one bulletin per day.
+def episode_dates(ep):
+    """Set of ISO date strings covered by an episode window."""
+    return {(ep["start"] + timedelta(days=i)).isoformat()
+            for i in range(ep["days"])}
 
-    Preference order: high-resolution over low-resolution, then the valid
-    hour closest to 12:00 UTC. Returns a dict mapping member name -> sort key
-    (year, month, day, hour) for the winners.
+
+def choose_bulletins(names, wanted_dates):
+    """Pick one bulletin per (date, hour) slot within the wanted dates.
+
+    Preference: high-resolution over low-resolution. Returns a dict mapping
+    member name -> (iso_date, hour) for the winners.
     """
-    # day -> list of (member_name, year, month, day, hour, is_hr)
-    by_day = {}
+    # (iso_date, hour) -> list of (name, is_hr)
+    by_slot = {}
     for name in names:
         m = NAME_RE.search(name)
         if not m:
             continue
         year, month, day, hour = (int(m.group(i)) for i in range(1, 5))
+        iso = f"{year:04d}-{month:02d}-{day:02d}"
+        if iso not in wanted_dates:
+            continue
         is_hr = m.group(5) == "HR"
-        key = (year, month, day)
-        by_day.setdefault(key, []).append((name, year, month, day, hour, is_hr))
+        by_slot.setdefault((iso, hour), []).append((name, is_hr))
 
     winners = {}
-    for key, entries in by_day.items():
-        has_hr = any(e[5] for e in entries)
-        candidates = [e for e in entries if e[5]] if has_hr else entries
-        # Closest to 12:00 UTC wins; ties broken by earlier hour.
-        best = min(candidates, key=lambda e: (abs(e[4] - 12), e[4]))
-        winners[best[0]] = (best[1], best[2], best[3], best[4])
+    for (iso, hour), entries in by_slot.items():
+        entries.sort(key=lambda e: (not e[1],))  # HR first
+        winners[entries[0][0]] = (iso, hour)
     return winners
 
 
 def round_line(lats, lons):
-    """Zip parallel lat/lon arrays into rounded [lat, lon] pairs."""
     return [[round(float(la), 1), round(float(lo), 1)]
             for la, lo in zip(lats, lons)]
 
 
-def build_frame(raw, valid_date, hour):
-    """Convert one raw bulletin into a compact frame."""
-    frame = {"date": valid_date, "hour": hour}
+def build_frame(raw, iso_date, hour):
+    frame = {"date": iso_date, "hour": hour}
     for src_key, short in FRONT_KEYS.items():
         lines = []
         for feature in raw.get(src_key, []) or []:
@@ -111,19 +142,23 @@ def main():
 
     archive_path = sys.argv[1]
     out_dir = os.path.abspath(OUTPUT_DIR)
-    os.makedirs(out_dir, exist_ok=True)
+    ep_dir = os.path.join(out_dir, "episodes")
+    os.makedirs(ep_dir, exist_ok=True)
+
+    # Union of all wanted dates, and which episode each member belongs to.
+    ep_date_sets = {ep["id"]: episode_dates(ep) for ep in EPISODES}
+    all_wanted = set().union(*ep_date_sets.values())
 
     print(f"Scanning archive {archive_path} ...")
     with tarfile.open(archive_path, "r:gz") as tar:
         names = [m.name for m in tar.getmembers() if m.isfile()]
     print(f"Found {len(names)} bulletins")
 
-    winners = choose_bulletins(names)
-    print(f"Selected {len(winners)} daily bulletins")
+    winners = choose_bulletins(names, all_wanted)
+    print(f"Selected {len(winners)} full-resolution bulletins across "
+          f"{len(EPISODES)} episodes")
 
-    # Stream through the archive once, collecting selected frames per year.
-    frames_by_year = {}
-    processed = 0
+    frames_by_ep = {ep["id"]: [] for ep in EPISODES}
     with tarfile.open(archive_path, "r:gz") as tar:
         for member in tar:
             if member.name not in winners:
@@ -136,34 +171,40 @@ def main():
             except (ValueError, UnicodeDecodeError) as exc:
                 print(f"  skipping {member.name}: {exc}")
                 continue
-
-            year, month, day, hour = winners[member.name]
-            valid_date = f"{year:04d}-{month:02d}-{day:02d}"
-            frame = build_frame(raw, valid_date, hour)
-            frames_by_year.setdefault(year, []).append(frame)
-            processed += 1
-            if processed % 500 == 0:
-                print(f"  processed {processed}/{len(winners)}")
+            iso, hour = winners[member.name]
+            frame = build_frame(raw, iso, hour)
+            for ep_id, dates in ep_date_sets.items():
+                if iso in dates:
+                    frames_by_ep[ep_id].append(frame)
 
     index = []
-    for year in sorted(frames_by_year):
-        frames = sorted(frames_by_year[year], key=lambda f: (f["date"], f["hour"]))
-        path = os.path.join(out_dir, f"{year}.json")
+    for ep in EPISODES:
+        frames = sorted(frames_by_ep[ep["id"]], key=lambda f: (f["date"], f["hour"]))
+        path = os.path.join(ep_dir, f"{ep['id']}.json")
         with open(path, "w") as f:
             json.dump(frames, f, separators=(",", ":"))
         size_kb = os.path.getsize(path) / 1024
-        index.append({"year": year, "frames": len(frames)})
-        print(f"  wrote {year}.json  ({len(frames)} frames, {size_kb:.0f} KB)")
+        end = ep["start"] + timedelta(days=ep["days"] - 1)
+        index.append({
+            "id": ep["id"],
+            "label": ep["label"],
+            "note": ep["note"],
+            "start": ep["start"].isoformat(),
+            "end": end.isoformat(),
+            "frames": len(frames),
+        })
+        print(f"  wrote episodes/{ep['id']}.json  "
+              f"({len(frames)} frames, {size_kb:.0f} KB)")
 
     with open(os.path.join(out_dir, "index.json"), "w") as f:
         json.dump({
             "source": "NWS Coded Surface Bulletins (Zenodo 2646544)",
             "sourceUrl": "https://zenodo.org/records/2646544",
-            "years": index,
+            "resolution": "3-hourly",
+            "episodes": index,
         }, f, indent=2)
 
-    total = sum(e["frames"] for e in index)
-    print(f"Done. {total} daily frames across {len(index)} years.")
+    print("Done.")
 
 
 if __name__ == "__main__":
