@@ -1,0 +1,70 @@
+{
+  "source": "NWS Coded Surface Bulletins (Zenodo 2646544)",
+  "sourceUrl": "https://zenodo.org/records/2646544",
+  "years": [
+    {
+      "year": 2003,
+      "frames": 362
+    },
+    {
+      "year": 2004,
+      "frames": 346
+    },
+    {
+      "year": 2005,
+      "frames": 365
+    },
+    {
+      "year": 2006,
+      "frames": 365
+    },
+    {
+      "year": 2007,
+      "frames": 365
+    },
+    {
+      "year": 2008,
+      "frames": 366
+    },
+    {
+      "year": 2009,
+      "frames": 365
+    },
+    {
+      "year": 2010,
+      "frames": 365
+    },
+    {
+      "year": 2011,
+      "frames": 365
+    },
+    {
+      "year": 2012,
+      "frames": 366
+    },
+    {
+      "year": 2013,
+      "frames": 365
+    },
+    {
+      "year": 2014,
+      "frames": 365
+    },
+    {
+      "year": 2015,
+      "frames": 365
+    },
+    {
+      "year": 2016,
+      "frames": 366
+    },
+    {
+      "year": 2017,
+      "frames": 365
+    },
+    {
+      "year": 2018,
+      "frames": 365
+    }
+  ]
+}

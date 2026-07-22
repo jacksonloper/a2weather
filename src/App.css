@@ -7,6 +7,34 @@
   flex-direction: column;
 }
 
+.app-nav {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.app-nav a {
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid #444;
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.app-nav a:hover {
+  border-color: #646cff;
+}
+
+.app-nav a.active {
+  background-color: #646cff;
+  border-color: #646cff;
+  color: #fff;
+}
+
 .app-header {
   text-align: center;
   margin-bottom: 2rem;
@@ -152,10 +180,150 @@
   color: #646cff;
 }
 
+/* Fronts player */
+.fronts-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.fronts-play {
+  padding: 0.5rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid #646cff;
+  background-color: #646cff;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 6rem;
+}
+
+.fronts-play:hover:not(:disabled) {
+  background-color: #535bf2;
+}
+
+.fronts-play:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.fronts-date {
+  margin-left: auto;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #646cff;
+  font-variant-numeric: tabular-nums;
+}
+
+.fronts-slider {
+  width: 100%;
+  margin: 0 0 1rem;
+  accent-color: #646cff;
+  cursor: pointer;
+}
+
+.fronts-map-container {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.fronts-map-container svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fronts-ocean {
+  fill: #0e2233;
+}
+
+.fronts-land {
+  fill: #20303a;
+  stroke: none;
+}
+
+.fronts-states {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 0.5;
+}
+
+.fronts-borders {
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 0.8;
+}
+
+.fronts-center-letter {
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.fronts-center-pressure {
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.fronts-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  justify-content: center;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.fronts-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fronts-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 /* Light mode adjustments */
 @media (prefers-color-scheme: light) {
   .controls {
     background: rgba(0, 0, 0, 0.03);
+  }
+
+  .app-nav a {
+    border-color: #ccc;
+  }
+
+  .fronts-controls {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .fronts-map-container {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .fronts-legend {
+    color: #555;
   }
   
   .selector-group select,
