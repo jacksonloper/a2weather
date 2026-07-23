@@ -9,7 +9,7 @@ A lightweight React + Vite website displaying historical weather data for Ann Ar
 - **Multiple Data Sources**: Currently supports Open-Meteo (more sources planned)
 - **75+ Years of Data**: Historical records from 1950 to present
 - **Continental US Wind Patterns**: An animated streamline map of historical 100 m
-  wind flow across the continental United States, sampled every 6 hours so moving
+  wind flow across the continental United States, sampled every 3 hours so moving
   features (e.g. hurricanes) glide smoothly, playing roughly one second per day
 
 ## Tech Stack
@@ -51,16 +51,16 @@ python scripts/fetch_openmeteo.py
 
 The wind page is powered by a compact binary of 100 m wind vectors on a
 low-resolution (1°) grid over the continental US, sampled at a fixed sub-daily
-cadence (6-hourly by default) over a chosen date range. Regenerate it with:
+cadence (3-hourly by default) over a chosen date range. Regenerate it with:
 
 ```bash
-python scripts/fetch_wind.py --start-date 2023-08-01 --end-date 2023-10-31 --step-hours 6
+python scripts/fetch_wind.py --start-date 2023-08-01 --end-date 2023-10-31 --step-hours 3
 ```
 
 This writes `public/data/wind/wind_100m_<year>.bin` (a few MB, quantized to
 16-bit integers), `wind_meta.json` (grid + timing + scaling metadata), and
 `us-states.json` (simplified state boundaries for map context). A quarter-year
-at 6-hourly resolution is about the same size as a full year of daily data.
+at 3-hourly resolution is roughly 4.5 MB.
 
 Or trigger the GitHub Action:
 1. Go to Actions tab

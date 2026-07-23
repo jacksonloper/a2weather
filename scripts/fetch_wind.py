@@ -40,7 +40,7 @@ STEP = 1.0                          # degrees (low resolution)
 
 SCALE = 100                         # stored int = round(value_m_s * SCALE)
 BATCH = 100                         # grid points per API request
-STEP_HOURS = 6                      # temporal cadence (6h = 4 frames/day)
+STEP_HOURS = 3                      # temporal cadence (3h = 8 frames/day)
 API_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 # Default date range: Atlantic hurricane peak quarter (~one quarter of a year).
