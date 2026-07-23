@@ -116,6 +116,22 @@
   cursor: pointer;
 }
 
+.wind-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: inherit;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.wind-toggle input {
+  accent-color: #646cff;
+  cursor: pointer;
+}
+
 .wind-legend {
   display: flex;
   align-items: center;

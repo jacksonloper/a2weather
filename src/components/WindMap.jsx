@@ -42,17 +42,20 @@ export default function WindMap() {
   const [meta, setMeta] = useState(null);
   const [playing, setPlaying] = useState(true);
   const [displayFrame, setDisplayFrame] = useState(0);
+  const [cubic, setCubic] = useState(true);
 
   // Mutable animation state kept in refs so the render loop never re-subscribes.
   const dataRef = useRef(null);        // Int16Array of u/v components
   const statesRef = useRef(null);      // GeoJSON boundaries
   const timeRef = useRef(0);           // current fractional frame index
   const playingRef = useRef(true);
+  const cubicRef = useRef(true);
   const particlesRef = useRef([]);
   const dimsRef = useRef(null);        // { W, H, dpr, project(), sample() }
   const rafRef = useRef(0);
 
   playingRef.current = playing;
+  cubicRef.current = cubic;
 
   // --- Load data -----------------------------------------------------------
   useEffect(() => {
@@ -116,8 +119,9 @@ export default function WindMap() {
     const { nlon, nlat, scale, nframes } = m;
     const cellStride = nlon * nlat * 2;
 
-    // Bilinear (space) + linear (time) sample of the wind at a fractional frame.
-    const sample = (frameFloat, lon, lat) => {
+    // Bilinear in space; linear or Catmull-Rom (cubic) in time. Cubic uses the
+    // four frames surrounding frameFloat for C1-continuous, smoother motion.
+    const sample = (frameFloat, lon, lat, cubicTime) => {
       const data = dataRef.current;
       const gx = (lon - m.lonMin) / m.step;
       const gy = (lat - m.latMin) / m.step;
@@ -130,15 +134,16 @@ export default function WindMap() {
       const fx = gx - x0;
       const fy = gy - y0;
 
-      const f0 = Math.floor(frameFloat) % nframes;
-      const f1 = (f0 + 1) % nframes;
-      const ft = frameFloat - Math.floor(frameFloat);
+      const baseFrame = Math.floor(frameFloat);
+      const ft = frameFloat - baseFrame;
+      const wrap = (k) => ((k % nframes) + nframes) % nframes;
 
       const at = (frame, col, row, comp) =>
         data[frame * cellStride + (row * nlon + col) * 2 + comp] / scale;
 
       const lerp = (a, b, t) => a + (b - a) * t;
 
+      // Bilinear interpolation in space at one integer frame.
       const bilin = (frame, comp) => {
         const v00 = at(frame, x0, y0, comp);
         const v10 = at(frame, x1, y0, comp);
@@ -147,8 +152,30 @@ export default function WindMap() {
         return lerp(lerp(v00, v10, fx), lerp(v01, v11, fx), fy);
       };
 
-      const u = lerp(bilin(f0, 0), bilin(f1, 0), ft);
-      const v = lerp(bilin(f0, 1), bilin(f1, 1), ft);
+      const f0 = wrap(baseFrame);
+      const f1 = wrap(baseFrame + 1);
+
+      if (!cubicTime) {
+        return [
+          lerp(bilin(f0, 0), bilin(f1, 0), ft),
+          lerp(bilin(f0, 1), bilin(f1, 1), ft),
+        ];
+      }
+
+      // Catmull-Rom spline through p0..p3 evaluated between p1 and p2.
+      const fm1 = wrap(baseFrame - 1);
+      const f2 = wrap(baseFrame + 2);
+      const t2 = ft * ft;
+      const t3 = t2 * ft;
+      const catmull = (p0, p1, p2, p3) =>
+        0.5 *
+        (2 * p1 +
+          (-p0 + p2) * ft +
+          (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+
+      const u = catmull(bilin(fm1, 0), bilin(f0, 0), bilin(f1, 0), bilin(f2, 0));
+      const v = catmull(bilin(fm1, 1), bilin(f0, 1), bilin(f1, 1), bilin(f2, 1));
       return [u, v];
     };
 
@@ -267,6 +294,7 @@ export default function WindMap() {
       const scale = speedScale();
       const particles = particlesRef.current;
       const speedMax = meta.speedMax || 25;
+      const cubicTime = cubicRef.current;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -278,7 +306,7 @@ export default function WindMap() {
           continue;
         }
         const [lon, lat] = unproject(p.x, p.y);
-        const wind = sample(frame, lon, lat);
+        const wind = sample(frame, lon, lat, cubicTime);
         if (!wind) {
           p.age = MAX_PARTICLE_AGE + 1;
           continue;
@@ -368,6 +396,14 @@ export default function WindMap() {
           className="wind-slider"
           aria-label="Timestep"
         />
+        <label className="wind-toggle">
+          <input
+            type="checkbox"
+            checked={cubic}
+            onChange={(e) => setCubic(e.target.checked)}
+          />
+          Cubic
+        </label>
         <div className="wind-legend">
           <span className="wind-legend-label">0</span>
           <div className="wind-legend-bar" />
@@ -377,7 +413,8 @@ export default function WindMap() {
       <p className="wind-hint">
         Animated 100&nbsp;m wind at {stepHours}-hour steps, roughly one second per
         day. Colors show wind speed; streamlines trace the flow. Drag the slider
-        to scrub through time.
+        to scrub through time. &ldquo;Cubic&rdquo; smooths motion between frames
+        with a Catmull-Rom spline (vs. linear interpolation).
       </p>
     </div>
   );
