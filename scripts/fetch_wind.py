@@ -3,19 +3,22 @@
 Fetch historical 100m wind data for the continental United States from
 Open-Meteo (ERA5) and store it as a compact binary for the web app.
 
-The output is a low-resolution regular lat/lon grid, one daily wind vector
-per grid cell for a single year. For each day we use the daily-aggregated
-100m wind (mean speed + dominant direction), converted to eastward (u) and
-northward (v) components. Values are quantized to signed 16-bit integers to
-keep the download small (a few MB for a full year).
+The output is a low-resolution regular lat/lon grid with one wind vector per
+grid cell at a fixed sub-daily cadence (default 6-hourly) over a chosen date
+range (default one quarter). The sub-daily sampling lets moving features such
+as hurricanes glide smoothly instead of hopping between daily snapshots. For
+each timestep we take the 100m hourly wind (speed + direction), converted to
+eastward (u) and northward (v) components. Values are quantized to signed
+16-bit integers to keep the download small (a few MB).
 
 Outputs (under public/data/wind/):
-  - wind_100m_<year>.bin   Int16 little-endian, layout [day][row][col][u,v]
+  - wind_100m_<year>.bin   Int16 little-endian, layout [frame][row][col][u,v]
   - wind_meta.json         grid + scaling metadata for the front-end
   - us-states.json         simplified US state boundaries (lon/lat) for context
 
 Usage:
-  python scripts/fetch_wind.py [--year 2023]
+  python scripts/fetch_wind.py [--start-date 2023-08-01] [--end-date 2023-10-31]
+                               [--step-hours 6]
 """
 
 import argparse
@@ -37,7 +40,12 @@ STEP = 1.0                          # degrees (low resolution)
 
 SCALE = 100                         # stored int = round(value_m_s * SCALE)
 BATCH = 100                         # grid points per API request
+STEP_HOURS = 6                      # temporal cadence (6h = 4 frames/day)
 API_URL = "https://archive-api.open-meteo.com/v1/archive"
+
+# Default date range: Atlantic hurricane peak quarter (~one quarter of a year).
+DEFAULT_START = "2023-08-01"
+DEFAULT_END = "2023-10-31"
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..", "public", "data", "wind")
 STATES_URL = (
@@ -63,8 +71,8 @@ def build_grid():
     return lons, lats, points
 
 
-def fetch_batch(points, start_date, end_date, retries=5):
-    """Fetch daily 100m wind for a list of (lat, lon) points (single request)."""
+def fetch_batch(points, start_date, end_date, retries=6):
+    """Fetch hourly 100m wind for a list of (lat, lon) points (single request)."""
     lat = ",".join(str(p[0]) for p in points)
     lon = ",".join(str(p[1]) for p in points)
     params = {
@@ -72,7 +80,7 @@ def fetch_batch(points, start_date, end_date, retries=5):
         "longitude": lon,
         "start_date": start_date,
         "end_date": end_date,
-        "daily": "wind_speed_100m_mean,wind_direction_100m_dominant",
+        "hourly": "wind_speed_100m,wind_direction_100m",
         "wind_speed_unit": "ms",
         "timezone": "GMT",
     }
@@ -116,19 +124,18 @@ def clamp_int16(value):
     return iv
 
 
-def fetch_wind(year):
+def fetch_wind(start_date, end_date, step_hours):
     lons, lats, points = build_grid()
     nlon, nlat = len(lons), len(lats)
-    start_date = f"{year}-01-01"
-    end_date = f"{year}-12-31"
 
-    ndays = None
-    # u_v[day] -> flat list of int16 in row-major (row, col, [u, v]) order.
-    day_arrays = None
+    nframes = None
+    # frames[frame] -> flat list of int16 in row-major (row, col, [u, v]) order.
+    frames = None
     speeds = []  # collect for color-scale hint
 
     total_batches = (len(points) + BATCH - 1) // BATCH
-    print(f"Grid: {nlon} lon x {nlat} lat = {len(points)} points, year {year}")
+    print(f"Grid: {nlon} lon x {nlat} lat = {len(points)} points")
+    print(f"Range {start_date}..{end_date}, every {step_hours}h")
     print(f"Fetching in {total_batches} batches of up to {BATCH}...")
 
     for b in range(total_batches):
@@ -144,25 +151,25 @@ def fetch_wind(year):
             global_idx = b * BATCH + local_idx
             row = global_idx // nlon
             col = global_idx % nlon
-            daily = res.get("daily", {})
-            times = daily.get("time", [])
-            spd = daily.get("wind_speed_100m_mean", [])
-            drc = daily.get("wind_direction_100m_dominant", [])
+            hourly = res.get("hourly", {})
+            times = hourly.get("time", [])
+            spd = hourly.get("wind_speed_100m", [])
+            drc = hourly.get("wind_direction_100m", [])
 
-            if ndays is None:
-                ndays = len(times)
-                day_arrays = [
-                    [0] * (nlat * nlon * 2) for _ in range(ndays)
-                ]
+            # Subsample the hourly series every `step_hours`.
+            frame_hours = list(range(0, len(times), step_hours))
+            if nframes is None:
+                nframes = len(frame_hours)
+                frames = [[0] * (nlat * nlon * 2) for _ in range(nframes)]
 
-            for d in range(ndays):
-                s = spd[d] if d < len(spd) else None
-                di = drc[d] if d < len(drc) else None
+            base = (row * nlon + col) * 2
+            for f_idx, h in enumerate(frame_hours):
+                s = spd[h] if h < len(spd) else None
+                di = drc[h] if h < len(drc) else None
                 u, v = speed_dir_to_uv(s, di)
                 if s is not None:
                     speeds.append(s)
-                base = (row * nlon + col) * 2
-                arr = day_arrays[d]
+                arr = frames[f_idx]
                 arr[base] = clamp_int16(u)
                 arr[base + 1] = clamp_int16(v)
 
@@ -174,24 +181,27 @@ def fetch_wind(year):
     speed_max = speeds[int(len(speeds) * 0.95)] if speeds else 25.0
 
     os.makedirs(BASE_DIR, exist_ok=True)
+    year = int(start_date[:4])
     bin_name = f"wind_100m_{year}.bin"
     bin_path = os.path.join(BASE_DIR, bin_name)
 
     with open(bin_path, "wb") as f:
-        for d in range(ndays):
-            f.write(struct.pack(f"<{len(day_arrays[d])}h", *day_arrays[d]))
+        for frame in frames:
+            f.write(struct.pack(f"<{len(frame)}h", *frame))
 
     size_mb = os.path.getsize(bin_path) / (1024 * 1024)
-    print(f"Wrote {bin_path} ({size_mb:.2f} MB)")
+    print(f"Wrote {bin_path} ({size_mb:.2f} MB, {nframes} frames)")
 
     meta = {
         "variable": "wind_100m",
-        "description": "Daily mean 100m wind (ERA5) as u/v components",
+        "description": f"{step_hours}-hourly 100m wind (ERA5) as u/v components",
         "source": "Open-Meteo ERA5 archive",
         "units": "m/s",
         "year": year,
         "startDate": start_date,
-        "ndays": ndays,
+        "endDate": end_date,
+        "stepHours": step_hours,
+        "nframes": nframes,
         "lonMin": LON_MIN,
         "latMin": LAT_MIN,
         "step": STEP,
@@ -246,7 +256,9 @@ def fetch_states():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--year", type=int, default=2023)
+    parser.add_argument("--start-date", default=DEFAULT_START)
+    parser.add_argument("--end-date", default=DEFAULT_END)
+    parser.add_argument("--step-hours", type=int, default=STEP_HOURS)
     parser.add_argument("--skip-states", action="store_true")
     parser.add_argument("--skip-wind", action="store_true")
     args = parser.parse_args()
@@ -254,7 +266,7 @@ def main():
     if not args.skip_states:
         fetch_states()
     if not args.skip_wind:
-        fetch_wind(args.year)
+        fetch_wind(args.start_date, args.end_date, args.step_hours)
 
 
 if __name__ == "__main__":

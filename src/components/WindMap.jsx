@@ -5,7 +5,7 @@ const DATA_DIR = '/data/wind';
 const META_PATH = `${DATA_DIR}/wind_meta.json`;
 const STATES_PATH = `${DATA_DIR}/us-states.json`;
 
-const DAYS_PER_SECOND = 1;        // playback rate (1 second per day)
+const DAYS_PER_SECOND = 1;        // playback rate (~1 second of wall clock per day)
 const MAX_PARTICLE_AGE = 90;      // frames before a particle respawns
 const FADE = 0.12;                // trail fade strength (higher = shorter trails)
 const REFERENCE_WIDTH = 900;      // width the motion scale is tuned for
@@ -17,14 +17,19 @@ const COLOR_LUT = Array.from({ length: LUT_SIZE }, (_, i) =>
   d3.interpolateTurbo(0.12 + 0.85 * (i / (LUT_SIZE - 1)))
 );
 
-function formatDate(year, dayIndex) {
-  const d = new Date(year, 0, 1);
-  d.setDate(d.getDate() + dayIndex);
-  return d.toLocaleDateString('en-US', {
+// Convert a frame index (each `stepHours` apart from startDate) to a label.
+function formatFrame(meta, frameIndex) {
+  const [y, m, d] = meta.startDate.split('-').map(Number);
+  const base = Date.UTC(y, m - 1, d);
+  const dt = new Date(base + frameIndex * (meta.stepHours || 24) * 3600 * 1000);
+  const date = dt.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   });
+  const hh = String(dt.getUTCHours()).padStart(2, '0');
+  return `${date} · ${hh}:00 UTC`;
 }
 
 export default function WindMap() {
@@ -36,12 +41,12 @@ export default function WindMap() {
   const [error, setError] = useState(null);
   const [meta, setMeta] = useState(null);
   const [playing, setPlaying] = useState(true);
-  const [displayDay, setDisplayDay] = useState(0);
+  const [displayFrame, setDisplayFrame] = useState(0);
 
   // Mutable animation state kept in refs so the render loop never re-subscribes.
   const dataRef = useRef(null);        // Int16Array of u/v components
   const statesRef = useRef(null);      // GeoJSON boundaries
-  const timeRef = useRef(0);           // current fractional day
+  const timeRef = useRef(0);           // current fractional frame index
   const playingRef = useRef(true);
   const particlesRef = useRef([]);
   const dimsRef = useRef(null);        // { W, H, dpr, project(), sample() }
@@ -108,11 +113,11 @@ export default function WindMap() {
       latMax - (y / H) * latSpan,
     ];
 
-    const { nlon, nlat, scale, ndays } = m;
+    const { nlon, nlat, scale, nframes } = m;
     const cellStride = nlon * nlat * 2;
 
-    // Bilinear sample of the wind field at (lon, lat) for a fractional day.
-    const sample = (dayFloat, lon, lat) => {
+    // Bilinear (space) + linear (time) sample of the wind at a fractional frame.
+    const sample = (frameFloat, lon, lat) => {
       const data = dataRef.current;
       const gx = (lon - m.lonMin) / m.step;
       const gy = (lat - m.latMin) / m.step;
@@ -125,25 +130,25 @@ export default function WindMap() {
       const fx = gx - x0;
       const fy = gy - y0;
 
-      const d0 = Math.floor(dayFloat) % ndays;
-      const d1 = (d0 + 1) % ndays;
-      const fd = dayFloat - Math.floor(dayFloat);
+      const f0 = Math.floor(frameFloat) % nframes;
+      const f1 = (f0 + 1) % nframes;
+      const ft = frameFloat - Math.floor(frameFloat);
 
-      const at = (day, col, row, comp) =>
-        data[day * cellStride + (row * nlon + col) * 2 + comp] / scale;
+      const at = (frame, col, row, comp) =>
+        data[frame * cellStride + (row * nlon + col) * 2 + comp] / scale;
 
       const lerp = (a, b, t) => a + (b - a) * t;
 
-      const bilin = (day, comp) => {
-        const v00 = at(day, x0, y0, comp);
-        const v10 = at(day, x1, y0, comp);
-        const v01 = at(day, x0, y1, comp);
-        const v11 = at(day, x1, y1, comp);
+      const bilin = (frame, comp) => {
+        const v00 = at(frame, x0, y0, comp);
+        const v10 = at(frame, x1, y0, comp);
+        const v01 = at(frame, x0, y1, comp);
+        const v11 = at(frame, x1, y1, comp);
         return lerp(lerp(v00, v10, fx), lerp(v01, v11, fx), fy);
       };
 
-      const u = lerp(bilin(d0, 0), bilin(d1, 0), fd);
-      const v = lerp(bilin(d0, 1), bilin(d1, 1), fd);
+      const u = lerp(bilin(f0, 0), bilin(f1, 0), ft);
+      const v = lerp(bilin(f0, 1), bilin(f1, 1), ft);
       return [u, v];
     };
 
@@ -240,12 +245,14 @@ export default function WindMap() {
       const dt = Math.min((ts - lastTs) / 1000, 0.05);
       lastTs = ts;
 
-      // Advance the playback clock.
+      // Advance the playback clock. Frames are `stepHours` apart, so playing at
+      // DAYS_PER_SECOND means (24 / stepHours) frames of wall-clock per second.
+      const framesPerSecond = (24 / (meta.stepHours || 24)) * DAYS_PER_SECOND;
       if (playingRef.current) {
         timeRef.current =
-          (timeRef.current + dt * DAYS_PER_SECOND) % meta.ndays;
-        const dayInt = Math.floor(timeRef.current);
-        setDisplayDay((prev) => (prev === dayInt ? prev : dayInt));
+          (timeRef.current + dt * framesPerSecond) % meta.nframes;
+        const frameInt = Math.floor(timeRef.current);
+        setDisplayFrame((prev) => (prev === frameInt ? prev : frameInt));
       }
 
       const ctx = particleCanvasRef.current.getContext('2d');
@@ -256,7 +263,7 @@ export default function WindMap() {
       ctx.globalCompositeOperation = 'source-over';
       ctx.lineWidth = Math.max(1, dims.dpr);
 
-      const day = timeRef.current;
+      const frame = timeRef.current;
       const scale = speedScale();
       const particles = particlesRef.current;
       const speedMax = meta.speedMax || 25;
@@ -271,7 +278,7 @@ export default function WindMap() {
           continue;
         }
         const [lon, lat] = unproject(p.x, p.y);
-        const wind = sample(day, lon, lat);
+        const wind = sample(frame, lon, lat);
         if (!wind) {
           p.age = MAX_PARTICLE_AGE + 1;
           continue;
@@ -321,9 +328,9 @@ export default function WindMap() {
   }, [meta, loading, buildDims, drawMap, spawnParticles]);
 
   const handleScrub = useCallback((e) => {
-    const day = Number(e.target.value);
-    timeRef.current = day;
-    setDisplayDay(day);
+    const frame = Number(e.target.value);
+    timeRef.current = frame;
+    setDisplayFrame(frame);
   }, []);
 
   if (loading) {
@@ -333,15 +340,15 @@ export default function WindMap() {
     return <div className="error">Error: {error}</div>;
   }
 
-  const year = meta.year;
   const speedMax = meta.speedMax || 25;
+  const stepHours = meta.stepHours || 24;
 
   return (
     <div className="wind-map">
       <div className="wind-canvas-wrap" ref={containerRef}>
         <canvas ref={mapCanvasRef} className="wind-layer" />
         <canvas ref={particleCanvasRef} className="wind-layer wind-particles" />
-        <div className="wind-date-badge">{formatDate(year, displayDay)}</div>
+        <div className="wind-date-badge">{formatFrame(meta, displayFrame)}</div>
       </div>
 
       <div className="wind-controls">
@@ -355,11 +362,11 @@ export default function WindMap() {
         <input
           type="range"
           min={0}
-          max={meta.ndays - 1}
-          value={displayDay}
+          max={meta.nframes - 1}
+          value={displayFrame}
           onChange={handleScrub}
           className="wind-slider"
-          aria-label="Day of year"
+          aria-label="Timestep"
         />
         <div className="wind-legend">
           <span className="wind-legend-label">0</span>
@@ -368,8 +375,9 @@ export default function WindMap() {
         </div>
       </div>
       <p className="wind-hint">
-        Animated 100&nbsp;m wind, roughly one second per day. Colors show wind
-        speed; streamlines trace the flow. Drag the slider to jump through the year.
+        Animated 100&nbsp;m wind at {stepHours}-hour steps, roughly one second per
+        day. Colors show wind speed; streamlines trace the flow. Drag the slider
+        to scrub through time.
       </p>
     </div>
   );
