@@ -8,6 +8,9 @@ A lightweight React + Vite website displaying historical weather data for Ann Ar
 - **Date Selection**: Select any day of the year and view ± 0-14 days of historical data
 - **Multiple Data Sources**: Currently supports Open-Meteo (more sources planned)
 - **75+ Years of Data**: Historical records from 1950 to present
+- **Continental US Wind Patterns**: An animated streamline map of historical 100 m
+  wind flow across the continental United States, sampled every 3 hours so moving
+  features (e.g. hurricanes) glide smoothly, playing roughly one second per day
 
 ## Tech Stack
 
@@ -44,6 +47,21 @@ Run the update script manually:
 python scripts/fetch_openmeteo.py
 ```
 
+### Wind Data
+
+The wind page is powered by a compact binary of 100 m wind vectors on a
+low-resolution (1°) grid over the continental US, sampled at a fixed sub-daily
+cadence (3-hourly by default) over a chosen date range. Regenerate it with:
+
+```bash
+python scripts/fetch_wind.py --start-date 2023-08-01 --end-date 2023-10-31 --step-hours 3
+```
+
+This writes `public/data/wind/wind_100m_<year>.bin` (a few MB, quantized to
+16-bit integers), `wind_meta.json` (grid + timing + scaling metadata), and
+`us-states.json` (simplified state boundaries for map context). A quarter-year
+at 3-hourly resolution is roughly 4.5 MB.
+
 Or trigger the GitHub Action:
 1. Go to Actions tab
 2. Select "Update Weather Data" workflow
@@ -58,12 +76,14 @@ Or trigger the GitHub Action:
 │       └── openmeteo/
 │           └── temps.csv       # Temperature data
 ├── scripts/
-│   └── fetch_openmeteo.py      # Data ingestion script
+│   ├── fetch_openmeteo.py      # Temperature data ingestion script
+│   └── fetch_wind.py           # 100 m wind data ingestion script
 ├── src/
 │   ├── components/
 │   │   ├── DataSourceSelector.jsx
 │   │   ├── DateRangeSelector.jsx
-│   │   └── SwarmPlot.jsx
+│   │   ├── SwarmPlot.jsx
+│   │   └── WindMap.jsx
 │   ├── App.jsx
 │   ├── App.css
 │   ├── main.jsx

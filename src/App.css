@@ -26,6 +26,143 @@
   flex: 1;
 }
 
+/* Page navigation tabs */
+.page-nav {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.page-tab {
+  padding: 0.45rem 1.4rem;
+  font-size: 0.95rem;
+  border-radius: 999px;
+  border: 1px solid #444;
+  background-color: #2a2a2a;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-tab:hover {
+  border-color: #646cff;
+}
+
+.page-tab.active {
+  background-color: #646cff;
+  border-color: #646cff;
+  color: #fff;
+}
+
+/* Wind map */
+.wind-map {
+  width: 100%;
+}
+
+.wind-canvas-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0e1726;
+}
+
+.wind-layer {
+  display: block;
+}
+
+.wind-particles {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.wind-date-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  backdrop-filter: blur(2px);
+}
+
+.wind-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.wind-play {
+  min-width: 3rem;
+  font-size: 1rem;
+}
+
+.wind-slider {
+  flex: 1;
+  min-width: 200px;
+  accent-color: #646cff;
+  cursor: pointer;
+}
+
+.wind-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: inherit;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.wind-toggle input {
+  accent-color: #646cff;
+  cursor: pointer;
+}
+
+.wind-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.wind-legend-bar {
+  width: 120px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(
+    to right,
+    #4145ab, #4675ed, #1bcfd4, #24eca6, #61fc6c,
+    #a4fc3b, #f9c72e, #fd9a2a, #f4691b, #cf3a09
+  );
+}
+
+.wind-legend-label {
+  white-space: nowrap;
+}
+
+.wind-hint {
+  text-align: center;
+  color: #888;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+  font-style: italic;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -176,8 +313,23 @@
   .swarm-plot-container {
     background: rgba(0, 0, 0, 0.02);
   }
-  
+
   .app-footer {
     border-top-color: #ddd;
+  }
+
+  .page-tab {
+    background-color: #fff;
+    border-color: #ccc;
+  }
+
+  .page-tab.active {
+    background-color: #646cff;
+    border-color: #646cff;
+    color: #fff;
+  }
+
+  .wind-canvas-wrap {
+    background: #e8eef5;
   }
 }
